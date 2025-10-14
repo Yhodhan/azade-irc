@@ -6,7 +6,10 @@ int main(void) {
       std::unique_ptr<IrcServer>(new IrcServer());
 
   std::cout << "=== INIT SERVER" << std::endl;
-  server->accept_client();
 
+  server->event_loop();
+
+  std::cout << "=== FINISH SERVER" << std::endl;
+  
   return 0;
 }

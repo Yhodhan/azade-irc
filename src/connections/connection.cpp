@@ -6,14 +6,15 @@ IrcConnection::IrcConnection(int fd) : client_fd(fd) {}
 IrcConnection::~IrcConnection() {}
 
 void IrcConnection::work_loop() {
-  std::cout << "inside work loop" << std::endl;
+  std::cout << "Client connected" << std::endl;
   char buffer[1024] = {0};
   while (true) {
 
-    ssize_t bytes = recv(this->client_fd, buffer, sizeof(buffer), 0);
+    ssize_t bytes = recv(this->client_fd, buffer, sizeof(buffer) - 1, 0);
 
     if (bytes < 0) {
-      std::perror("=== Recv failed");
+      perror("Recv");
+      std::cerr << "=== Recv failed: " << errno << std::endl;
       break;
     } else if (bytes == 0) {
       std::cout << "Client Disconnected" << std::endl;

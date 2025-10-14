@@ -24,5 +24,5 @@ private:
   int port = 6667;
 
   // connections data structures
-  std::unordered_map<int, std::unique_ptr<IrcConnection>> connections;
+  std::unordered_map<int, std::shared_ptr<IrcConnection>> connections;
 };
