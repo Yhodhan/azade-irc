@@ -11,13 +11,17 @@
 class IrcConnection {
 
 public:
-  IrcConnection(int fd, SSL_CTX * ssl_ctx);
+  IrcConnection(int fd, SSL_CTX *ssl_ctx);
   ~IrcConnection();
+
+  bool handshake_succesful() const;
+  SSL *get_ssl() const;
 
   void work_loop();
 
 private:
   int client_fd;
-  SSL* ssl = NULL;
+  SSL *ssl = NULL;
   std::string nick;
+  bool handshake_ok;
 };

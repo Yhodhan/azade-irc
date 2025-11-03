@@ -1,5 +1,6 @@
 #include "irc_server.h"
 #include <openssl/err.h>
+#include <openssl/ssl.h>
 
 IrcServer::IrcServer() {
   // socket creation
@@ -28,6 +29,8 @@ IrcServer::IrcServer() {
 
 void IrcServer::init_ssl() {
   SSL_library_init();
+
+  ERR_load_crypto_strings();
   SSL_load_error_strings();
   OpenSSL_add_ssl_algorithms();
 
@@ -47,12 +50,6 @@ void IrcServer::init_ssl() {
 
 // -------  Welcoming message
 
-void IrcServer::welcome_message(int client_fd) {
-  std::string welcome = "WELCOME TO AZADE SERVER\n";
-
-  send(client_fd, welcome.c_str(), welcome.size(), 0);
-}
-
 IrcServer::~IrcServer() { close(this->irc_socket); }
 
 // ------- Accept incoming connections
@@ -65,17 +62,20 @@ void IrcServer::accept_client() {
   // Create connection object and thread
   // ------------------------------------
 
-  this->welcome_message(client_fd);
-
   auto client = std::shared_ptr<IrcConnection>(
       new IrcConnection(client_fd, this->ssl_ctx));
 
   this->connections.insert({client_fd, client});
 
   std::thread([this, client_fd, client] {
+    if (client->handshake_succesful()) {
+
+      std::string welcome = "WELCOME TO AZADE SERVER\n";
+      SSL_write(client->get_ssl(), welcome.c_str(), welcome.size());
+    }
+
     client->work_loop();
     this->connections.erase(client_fd);
-    std::cout << "close connection to client" << std::endl;
   }).detach();
 }
 
