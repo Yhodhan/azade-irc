@@ -23,13 +23,12 @@ public:
   void work_loop();
 
 protected:
-  void handle_tls();
-  void handle_plain();
+  std::string parse_command(char command[]);
 
 private:
   int sock;
   SSL *ssl = NULL;
   std::string nick;
-  bool handshake_ok;
-  bool is_tls;
+  bool handshake_ok = false;
+  bool is_tls = false;
 };
