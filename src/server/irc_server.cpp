@@ -1,31 +1,51 @@
 #include "irc_server.h"
-#include <openssl/err.h>
-#include <openssl/ssl.h>
 
-IrcServer::IrcServer() {
+// -----------------------
+//      Constructors
+// -----------------------
+
+IrcServer::IrcServer() { this->init_ssl(); }
+
+void IrcServer::start() {
+  // listen to ports
+  this->tls_socket = setup_socket(this->tls_port);
+  this->plain_socket = setup_socket(this->plain_port);
+
+  std::thread([this] { this->accept_client(this->tls_socket, true); }).detach();
+  std::thread([this] {
+    this->accept_client(this->plain_socket, false);
+  }).detach();
+
+  while (true)
+    std::this_thread::sleep_for(std::chrono::hours(1));
+}
+
+int IrcServer::setup_socket(int port) {
   // socket creation
-  this->irc_socket = socket(AF_INET, SOCK_STREAM, 0);
+  int sock = socket(AF_INET, SOCK_STREAM, 0);
 
   // specify address
   sockaddr_in addr{};
   srv_address.sin_family = AF_INET;
-  srv_address.sin_port = htons(this->port);
+  srv_address.sin_port = htons(port);
   srv_address.sin_addr.s_addr = INADDR_ANY;
 
-  int val =
-      bind(this->irc_socket, (struct sockaddr *)&srv_address, sizeof(addr));
+  int val = bind(sock, (struct sockaddr *)&srv_address, sizeof(addr));
 
   if (val == -1) {
+    // do some proper handling error on this
     std::cerr << "Error binding the port" << std::endl;
-    return;
+    exit(1);
   }
 
-  listen(this->irc_socket, SOMAXCONN);
+  listen(sock, SOMAXCONN);
 
-  this->init_ssl();
+  return sock;
 }
 
-// -------  SSL encryption
+// -----------------------
+//     SSL encryption
+// -----------------------
 
 void IrcServer::init_ssl() {
   SSL_library_init();
@@ -48,41 +68,52 @@ void IrcServer::init_ssl() {
   }
 }
 
-// -------  Welcoming message
+// -----------------------
+//       Destructor
+// -----------------------
 
-IrcServer::~IrcServer() { close(this->irc_socket); }
+IrcServer::~IrcServer() {
+  close(this->tls_socket);
+  close(this->plain_socket);
+}
 
-// ------- Accept incoming connections
+// -----------------------------
+//  Accept incoming connections
+// -----------------------------
 
-void IrcServer::accept_client() {
-  int client_fd = accept(this->irc_socket, nullptr, nullptr);
+void IrcServer::accept_client(int sock, bool use_tls) {
 
-  std::cout << "=== TSL handshake done" << std::endl;
+  int client_fd = accept(sock, nullptr, nullptr);
   // ------------------------------------
   // Create connection object and thread
   // ------------------------------------
 
-  auto client = std::shared_ptr<IrcConnection>(
-      new IrcConnection(client_fd, this->ssl_ctx));
+  if (use_tls) {
+    auto client = std::shared_ptr<IrcConnection>(
+        new IrcConnection(client_fd, this->ssl_ctx));
 
-  this->connections.insert({client_fd, client});
+    this->connections.insert({client_fd, client});
 
-  std::thread([this, client_fd, client] {
-    if (client->handshake_succesful()) {
+    std::thread([this, client_fd, client] {
+      if (client->handshake_successful()) {
+        std::string welcome = "WELCOME TO AZADE SERVER\n";
+        SSL_write(client->get_ssl(), welcome.c_str(), welcome.size());
+      }
 
+      client->work_loop();
+      this->connections.erase(client_fd);
+    }).detach();
+  } else {
+    auto client = std::shared_ptr<IrcConnection>(new IrcConnection(client_fd));
+
+    this->connections.insert({client_fd, client});
+
+    std::thread([this, client_fd, client] {
       std::string welcome = "WELCOME TO AZADE SERVER\n";
-      SSL_write(client->get_ssl(), welcome.c_str(), welcome.size());
-    }
+      write(client_fd, welcome.c_str(), welcome.size());
 
-    client->work_loop();
-    this->connections.erase(client_fd);
-  }).detach();
-}
-
-// ------- Event Loop
-
-void IrcServer::event_loop() {
-  while (true) {
-    this->accept_client();
+      client->work_loop();
+      this->connections.erase(client_fd);
+    }).detach();
   }
 }

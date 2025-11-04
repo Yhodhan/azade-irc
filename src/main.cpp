@@ -7,7 +7,7 @@ int main(void) {
 
   std::cout << "=== INIT SERVER" << std::endl;
 
-  server->event_loop();
+  server->start();
 
   std::cout << "=== FINISH SERVER" << std::endl;
   
