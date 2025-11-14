@@ -41,10 +41,11 @@ SSL *IrcConnection::get_ssl() const { return this->ssl; }
 //      Main work loop
 // -----------------------
 ssize_t IrcConnection::read_msg(char *buffer) {
-  return this->is_tls ? SSL_read(this->ssl, buffer, sizeof(*buffer) - 1)
-                      : read(this->sock, buffer, sizeof(*buffer) - 1);
+  return this->is_tls ? SSL_read(this->ssl, buffer, sizeof(buffer) - 1)
+                      : read(this->sock, buffer, sizeof(buffer) - 1);
 }
-void IrcConnection::write_reply(const std::string reply) {
+void IrcConnection::write_reply(std::string reply) {
+  reply+= "\r\n";
   this->is_tls ? SSL_write(this->ssl, reply.c_str(), reply.size())
                : write(this->sock, reply.c_str(), reply.size());
 }
@@ -65,7 +66,7 @@ void IrcConnection::work_loop() {
     }
 
     buffer[bytes] = 0;
-    std::cout << "Message from client: " << buffer << std::endl;
+    std::cout << "Client msg: " << buffer << std::endl;
     // here should parse the commands, return answers
     std::string cmd(buffer);
     this->handle_command(cmd);
@@ -77,9 +78,11 @@ void IrcConnection::handle_command(std::string command) {
 
   switch (cmd.cmd) {
   case CAP:
-    this->write_reply(std::string("CAP command"));
+    this->write_reply(std::string(":azade CAP * LS :"));
+    break;
   case JOIN:
     this->write_reply(std::string("JOIN command"));
+    break;
   default:
     this->write_reply(std::string("INVALID command"));
   }
