@@ -1,3 +1,6 @@
+#pragma once
+
+#include "../commands/commands.h"
 #include <arpa/inet.h>
 #include <cstring>
 #include <iostream>
@@ -23,7 +26,9 @@ public:
   void work_loop();
 
 protected:
-  std::string parse_command(char command[]);
+  ssize_t read_msg(char *buffer);
+  void write_reply(const std::string reply);
+  void handle_command(std::string cmd);
 
 private:
   int sock;

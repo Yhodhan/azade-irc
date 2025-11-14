@@ -1,8 +1,4 @@
 #include "connection.h"
-#include <cstring>
-#include <openssl/err.h>
-#include <openssl/ssl.h>
-#include <sys/types.h>
 
 // -----------------------
 //      Constructors
@@ -44,14 +40,21 @@ SSL *IrcConnection::get_ssl() const { return this->ssl; }
 // -----------------------
 //      Main work loop
 // -----------------------
+ssize_t IrcConnection::read_msg(char *buffer) {
+  return this->is_tls ? SSL_read(this->ssl, buffer, sizeof(*buffer) - 1)
+                      : read(this->sock, buffer, sizeof(*buffer) - 1);
+}
+void IrcConnection::write_reply(const std::string reply) {
+  this->is_tls ? SSL_write(this->ssl, reply.c_str(), reply.size())
+               : write(this->sock, reply.c_str(), reply.size());
+}
 
 void IrcConnection::work_loop() {
   char buffer[1024] = {0};
-  std::string reply;
+
   while (true) {
-    ssize_t bytes = this->is_tls
-                        ? SSL_read(this->ssl, buffer, sizeof(buffer) - 1)
-                        : read(this->sock, buffer, sizeof(buffer) - 1);
+    ssize_t bytes = this->read_msg(buffer);
+
     if (bytes < 0) {
       perror("Reading bytes");
       std::cerr << "=== Recv failed: " << errno << std::endl;
@@ -64,17 +67,24 @@ void IrcConnection::work_loop() {
     buffer[bytes] = 0;
     std::cout << "Message from client: " << buffer << std::endl;
     // here should parse the commands, return answers
-    reply = this->parse_command(buffer);
-
-    this->is_tls ? SSL_write(this->ssl, reply.c_str(), reply.size())
-                 : write(this->sock, reply.c_str(), reply.size());
+    std::string cmd(buffer);
+    this->handle_command(cmd);
   }
 }
 
-std::string IrcConnection::parse_command(char command[]) {
-  std::string cmd(command);
-  if (cmd == "CAP LS 302") {
-    return std::string(":azade-server CAP * LS: \r\n");
+void IrcConnection::handle_command(std::string command) {
+  Command cmd = parse_command(command);
+
+  switch (cmd.cmd) {
+  case CAP:
+    this->write_reply(std::string("CAP command"));
+  case JOIN:
+    this->write_reply(std::string("JOIN command"));
+  default:
+    this->write_reply(std::string("INVALID command"));
   }
-  return "";
 }
+
+// ------------------
+//   Parse commands
+// ------------------

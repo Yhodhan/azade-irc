@@ -1,3 +1,5 @@
+#pragma once 
+
 #include "../channels/channel.h"
 #include "../connections/connection.h"
 #include <arpa/inet.h>
