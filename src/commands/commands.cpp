@@ -2,13 +2,13 @@
 
 // --------------------------------------------------------------
 
-std::vector<std::string> split_command(const std::string cmd) {
+Params split_command(const std::string cmd) {
   // store token
   std::string s;
 
   std::stringstream ss(cmd);
 
-  std::vector<std::string> tokens;
+  Params tokens;
 
   while (getline(ss, s, ' ')) {
     tokens.push_back(s);
@@ -19,18 +19,20 @@ std::vector<std::string> split_command(const std::string cmd) {
 
 // --------------------------------------------------------------
 
-Command get_command(std::vector<std::string> command) {
+Command get_command(Params command) {
   std::string cmd = command[0];
+  command.erase(command.begin());
 
-  if (cmd == "CAP") {
-    command.erase(command.begin());
+  if (cmd == "CAP")
     return Command(CAP, command);
-  } else if (cmd == "JOIN") {
-    command.erase(command.begin());
+  else if (cmd == "JOIN")
     return Command(JOIN, command);
-  } else {
-    return Command(INVALID, std::vector<std::string>({}));
-  }
+  else if (cmd == "NICK")
+    return Command(NICK, command);
+  else if (cmd == "USER")
+    return Command(USER, command);
+  else
+    return Command(INVALID, Params({}));
 }
 
 Command parse_command(const std::string cmd) {

@@ -13,6 +13,18 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+struct User {
+  std::string username;
+  std::string hostname;
+  std::string servername;
+  std::string realname;
+
+  User(const std::string user, const std::string host, const std::string server,
+       const std::string realname)
+      : username(user), hostname(host), servername(server), realname(realname) {
+  }
+};
+
 class IrcConnection {
 
 public:
@@ -22,13 +34,15 @@ public:
 
   bool handshake_successful() const;
   SSL *get_ssl() const;
-
   void work_loop();
 
 protected:
   ssize_t read_msg(char *buffer);
   void write_reply(const std::string reply);
   void handle_command(std::string cmd);
+  // Handle commands
+  void command_nick(Params params);
+  void command_user(Params params);
 
 private:
   int sock;
@@ -36,4 +50,5 @@ private:
   std::string nick;
   bool handshake_ok = false;
   bool is_tls = false;
+  User *user = NULL;
 };

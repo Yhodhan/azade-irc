@@ -4,17 +4,21 @@
 #include <string>
 #include <vector>
 
+#define Params std::vector<std::string>
+
 enum COMMAND {
   CAP,
   JOIN,
+  NICK,
+  USER,
   INVALID,
 };
 
 struct Command {
   COMMAND cmd;
-  std::vector<std::string> params;
+  Params params;
 
-  Command(COMMAND command, std::vector<std::string> parameters)
+  Command(COMMAND command, Params parameters)
       : cmd(command), params(parameters) {}
 };
 

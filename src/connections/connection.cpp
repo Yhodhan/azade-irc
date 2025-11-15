@@ -45,7 +45,7 @@ ssize_t IrcConnection::read_msg(char *buffer) {
                       : read(this->sock, buffer, sizeof(buffer) - 1);
 }
 void IrcConnection::write_reply(std::string reply) {
-  reply+= "\r\n";
+  reply += "\r\n";
   this->is_tls ? SSL_write(this->ssl, reply.c_str(), reply.size())
                : write(this->sock, reply.c_str(), reply.size());
 }
@@ -53,23 +53,22 @@ void IrcConnection::write_reply(std::string reply) {
 void IrcConnection::work_loop() {
   char buffer[1024] = {0};
 
+  std::string cmd;
   while (true) {
     ssize_t bytes = this->read_msg(buffer);
 
-    if (bytes < 0) {
-      perror("Reading bytes");
-      std::cerr << "=== Recv failed: " << errno << std::endl;
+    if (bytes <= 0)
       break;
-    } else if (bytes == 0) {
-      std::cerr << "=== Client Disconnected" << std::endl;
-      break;
-    }
 
-    buffer[bytes] = 0;
-    std::cout << "Client msg: " << buffer << std::endl;
-    // here should parse the commands, return answers
-    std::string cmd(buffer);
-    this->handle_command(cmd);
+    cmd.append(buffer, bytes);
+
+    size_t pos;
+    while ((pos = cmd.find("\r\n")) != std::string::npos) {
+      std::string msg = cmd.substr(0, pos);
+      cmd.erase(0, pos + 2);
+      std::cout << "Command to execute: " << msg << std::endl;
+      this->handle_command(msg);
+    }
   }
 }
 
@@ -81,7 +80,13 @@ void IrcConnection::handle_command(std::string command) {
     this->write_reply(std::string(":azade CAP * LS :"));
     break;
   case JOIN:
-    this->write_reply(std::string("JOIN command"));
+    // this->write_reply(std::string("JOIN command"));
+    break;
+  case NICK:
+    command_nick(cmd.params);
+    break;
+  case USER:
+    command_user(cmd.params);
     break;
   default:
     this->write_reply(std::string("INVALID command"));
@@ -89,5 +94,22 @@ void IrcConnection::handle_command(std::string command) {
 }
 
 // ------------------
-//   Parse commands
+//     Commands
 // ------------------
+void IrcConnection::command_nick(Params params) {
+  this->nick = params[0];
+  std::cout << "User nick is: " << this->nick << std::endl;
+}
+
+void IrcConnection::command_user(Params params) {
+
+  // std::cout << "params size: " << params.size() << std::endl;
+  // for (auto str : params)
+  //   std::cout << "str: " << str << std::endl;
+  this->user = new User(params[0], params[1], params[2], params[3]);
+
+  std::cout << "User is: " << this->user->username << std::endl;
+  std::cout << "User is: " << this->user->hostname << std::endl;
+  std::cout << "User is: " << this->user->realname << std::endl;
+  std::cout << "User is: " << this->user->servername << std::endl;
+}
