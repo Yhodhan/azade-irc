@@ -92,7 +92,10 @@ void IrcServer::accept_client(int sock, bool use_tls) {
     auto client = std::shared_ptr<IrcConnection>(
         new IrcConnection(client_fd, this->ssl_ctx));
 
-    this->connections.insert({client_fd, client});
+    {
+      std::lock_guard<std::mutex> lock(conn_mutex);
+      this->connections.insert({client_fd, client});
+    }
 
     std::thread([this, client_fd, client] {
       if (client->handshake_successful()) {
@@ -101,19 +104,31 @@ void IrcServer::accept_client(int sock, bool use_tls) {
       }
 
       client->work_loop();
-      this->connections.erase(client_fd);
+      {
+        std::lock_guard<std::mutex> lock(conn_mutex);
+        this->connections.erase(client_fd);
+      }
     }).detach();
+    // ------------------
+    // common connection
+    // ------------------
   } else {
     auto client = std::shared_ptr<IrcConnection>(new IrcConnection(client_fd));
 
-    this->connections.insert({client_fd, client});
+    {
+      std::lock_guard<std::mutex> lock(conn_mutex);
+      this->connections.insert({client_fd, client});
+    }
 
     std::thread([this, client_fd, client] {
       std::string welcome = "WELCOME TO AZADE SERVER\n";
       write(client_fd, welcome.c_str(), welcome.size());
 
       client->work_loop();
-      this->connections.erase(client_fd);
+      {
+        std::lock_guard<std::mutex> lock(conn_mutex);
+        this->connections.erase(client_fd);
+      }
     }).detach();
   }
 }

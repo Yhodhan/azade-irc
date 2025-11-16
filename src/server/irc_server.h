@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 #include "../channels/channel.h"
 #include "../connections/connection.h"
@@ -6,6 +6,7 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <netinet/in.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
@@ -39,4 +40,5 @@ private:
   SSL_CTX *ssl_ctx = nullptr;
   // connections data structures
   std::unordered_map<int, std::shared_ptr<IrcConnection>> connections;
+  std::mutex conn_mutex;
 };
