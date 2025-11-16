@@ -74,7 +74,6 @@ void IrcConnection::work_loop() {
 
 void IrcConnection::handle_command(std::string command) {
   Command cmd = parse_command(command);
-
   switch (cmd.cmd) {
   case CAP:
     this->write_reply(std::string(":azade CAP * LS :"));
@@ -103,13 +102,13 @@ void IrcConnection::command_nick(Params params) {
 
 void IrcConnection::command_user(Params params) {
 
-  // std::cout << "params size: " << params.size() << std::endl;
-  // for (auto str : params)
-  //   std::cout << "str: " << str << std::endl;
-  this->user = new User(params[0], params[1], params[2], params[3]);
+  if (params.size() < 4) {
+    write_reply("461 USER :Not enough parameters");
+    return;
+  }
 
-  std::cout << "User is: " << this->user->username << std::endl;
-  std::cout << "User is: " << this->user->hostname << std::endl;
-  std::cout << "User is: " << this->user->realname << std::endl;
-  std::cout << "User is: " << this->user->servername << std::endl;
+  this->username = params[0];
+  this->hostname = params[1];
+  this->realname = params[2];
+  this->servername = params[3];
 }

@@ -13,18 +13,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-struct User {
-  std::string username;
-  std::string hostname;
-  std::string servername;
-  std::string realname;
-
-  User(const std::string user, const std::string host, const std::string server,
-       const std::string realname)
-      : username(user), hostname(host), servername(server), realname(realname) {
-  }
-};
-
 class IrcConnection {
 
 public:
@@ -50,5 +38,8 @@ private:
   std::string nick;
   bool handshake_ok = false;
   bool is_tls = false;
-  User *user = NULL;
+  std::string username;
+  std::string hostname;
+  std::string servername;
+  std::string realname;
 };
