@@ -4,14 +4,17 @@
 //      Constructors
 // -----------------------
 
-IrcConnection::IrcConnection(int sock) : sock(sock) {}
+IrcConnection::IrcConnection(int fd, std::shared_ptr<Connections> conns)
+    : sock(fd), conns(conns) {}
 
-IrcConnection::IrcConnection(int sock, SSL_CTX *ssl_ctx) : sock(sock) {
+IrcConnection::IrcConnection(int fd, SSL_CTX *ssl_ctx,
+                             std::shared_ptr<Connections> conns)
+    : sock(fd), conns(conns) {
   this->ssl = SSL_new(ssl_ctx);
   SSL_set_fd(ssl, sock);
 
   if (SSL_accept(ssl) <= 0) {
-    std::cerr << "TLS Handshake failed" << std::endl;
+    std::cerr << "TLS handshake failed" << std::endl;
     ERR_print_errors_fp(stderr);
   } else {
     std::cout << "TLS handshake complete" << std::endl;
@@ -34,8 +37,9 @@ IrcConnection::~IrcConnection() {
 //        Getters
 // -----------------------
 
-bool IrcConnection::handshake_successful() const { return this->handshake_ok; }
 SSL *IrcConnection::get_ssl() const { return this->ssl; }
+bool IrcConnection::get_is_tls() const { return this->is_tls; }
+bool IrcConnection::handshake_successful() const { return this->handshake_ok; }
 
 // -----------------------
 //      Main work loop
@@ -107,8 +111,22 @@ void IrcConnection::command_user(Params params) {
     return;
   }
 
+//  if (user_exist(params)) {
+//    write_reply("433 USER :User already registered");
+//    return;
+//  }
+
   this->username = params[0];
   this->hostname = params[1];
   this->realname = params[2];
   this->servername = params[3];
 }
+
+// ------------------
+//  Helper functions
+// ------------------
+
+std::string IrcConnection::get_username() { return this->username; }
+std::string IrcConnection::get_hostname() { return this->hostname; }
+std::string IrcConnection::get_servername() { return this->servername; }
+std::string IrcConnection::get_realname() { return this->realname; }

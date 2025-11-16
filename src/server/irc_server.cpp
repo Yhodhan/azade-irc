@@ -4,7 +4,10 @@
 //      Constructors
 // -----------------------
 
-IrcServer::IrcServer() { this->init_ssl(); }
+IrcServer::IrcServer() {
+  this->init_ssl();
+  this->conns = std::make_shared<Connections>();
+}
 
 void IrcServer::start() {
   // listen to ports
@@ -80,6 +83,16 @@ IrcServer::~IrcServer() {
 // -----------------------------
 //  Accept incoming connections
 // -----------------------------
+void welcome_msg(std::shared_ptr<IrcConnection> client, int fd) {
+  std::string welcome = "WELCOME TO AZADE SERVER\n";
+  if (client->get_is_tls()) {
+    if (client->handshake_successful()) {
+      SSL_write(client->get_ssl(), welcome.c_str(), welcome.size());
+    }
+  } else {
+    write(fd, welcome.c_str(), welcome.size());
+  }
+}
 
 void IrcServer::accept_client(int sock, bool use_tls) {
 
@@ -87,48 +100,30 @@ void IrcServer::accept_client(int sock, bool use_tls) {
   // ------------------------------------
   // Create connection object and thread
   // ------------------------------------
-
-  if (use_tls) {
-    auto client = std::shared_ptr<IrcConnection>(
-        new IrcConnection(client_fd, this->ssl_ctx));
-
-    {
-      std::lock_guard<std::mutex> lock(conn_mutex);
-      this->connections.insert({client_fd, client});
-    }
-
-    std::thread([this, client_fd, client] {
-      if (client->handshake_successful()) {
-        std::string welcome = "WELCOME TO AZADE SERVER\n";
-        SSL_write(client->get_ssl(), welcome.c_str(), welcome.size());
-      }
-
-      client->work_loop();
-      {
-        std::lock_guard<std::mutex> lock(conn_mutex);
-        this->connections.erase(client_fd);
-      }
-    }).detach();
-    // ------------------
-    // common connection
-    // ------------------
-  } else {
-    auto client = std::shared_ptr<IrcConnection>(new IrcConnection(client_fd));
-
-    {
-      std::lock_guard<std::mutex> lock(conn_mutex);
-      this->connections.insert({client_fd, client});
-    }
-
-    std::thread([this, client_fd, client] {
-      std::string welcome = "WELCOME TO AZADE SERVER\n";
-      write(client_fd, welcome.c_str(), welcome.size());
-
-      client->work_loop();
-      {
-        std::lock_guard<std::mutex> lock(conn_mutex);
-        this->connections.erase(client_fd);
-      }
-    }).detach();
+  if (client_fd < 0) {
+    perror("Accept");
+    return;
   }
+
+  std::shared_ptr<IrcConnection> client;
+
+  if (use_tls)
+    client = std::make_shared<IrcConnection>(client_fd, this->ssl_ctx, this->conns);
+  else
+    client = std::make_shared<IrcConnection>(client_fd, this->conns);
+
+  {
+    std::lock_guard<std::mutex> lock(conns->mtx);
+    this->conns->connections.insert({client_fd, client});
+  }
+
+  std::thread([conns = this->conns, client_fd, client] {
+    welcome_msg(client, client_fd);
+
+    client->work_loop();
+    {
+      std::lock_guard<std::mutex> lock(conns->mtx);
+      conns->connections.erase(client_fd);
+    }
+  }).detach();
 }

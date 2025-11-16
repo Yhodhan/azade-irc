@@ -13,22 +13,39 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+class IrcConnection;
+
+using ConnectionsMap = std::unordered_map<int, std::shared_ptr<IrcConnection>>;
+
+struct Connections {
+  std::mutex mtx;
+  ConnectionsMap connections;
+};
+
 class IrcConnection {
 
 public:
-  IrcConnection(int fd);
-  IrcConnection(int fd, SSL_CTX *ssl_ctx);
+  IrcConnection(int fd, std::shared_ptr<Connections> conns);
+  IrcConnection(int fd, SSL_CTX *ssl_ctx, std::shared_ptr<Connections> conns);
   ~IrcConnection();
 
-  bool handshake_successful() const;
   SSL *get_ssl() const;
   void work_loop();
+  bool get_is_tls() const;
+  bool handshake_successful() const;
+
+  std::string get_username();
+  std::string get_hostname();
+  std::string get_servername();
+  std::string get_realname();
 
 protected:
   ssize_t read_msg(char *buffer);
   void write_reply(const std::string reply);
   void handle_command(std::string cmd);
+  bool user_exist(Params params);
   // Handle commands
+  void command_cap(Params params);
   void command_nick(Params params);
   void command_user(Params params);
 
@@ -42,4 +59,6 @@ private:
   std::string hostname;
   std::string servername;
   std::string realname;
+
+  std::shared_ptr<Connections> conns;
 };
