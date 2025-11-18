@@ -3,6 +3,7 @@
 #include "../commands/commands.h"
 #include "../users/user.h"
 #include <arpa/inet.h>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -26,10 +27,11 @@ struct Connections {
 class IrcConnection {
 
 public:
-  IrcConnection(int fd, std::shared_ptr<Connections> conns,
+  IrcConnection(int fd, uint32_t id, std::shared_ptr<Connections> conns,
                 std::shared_ptr<Users> users);
 
-  IrcConnection(int fd, SSL_CTX *ssl_ctx, std::shared_ptr<Connections> conns,
+  IrcConnection(int fd, uint32_t id, SSL_CTX *ssl_ctx,
+                std::shared_ptr<Connections> conns,
                 std::shared_ptr<Users> users);
 
   ~IrcConnection();
@@ -38,11 +40,7 @@ public:
   void work_loop();
   bool get_is_tls() const;
   bool handshake_successful() const;
-
-  std::string get_username();
-  std::string get_hostname();
-  std::string get_servername();
-  std::string get_realname();
+  uint32_t get_user_id() const;
 
 protected:
   ssize_t read_msg(char *buffer);
@@ -58,13 +56,9 @@ protected:
 private:
   int sock;
   SSL *ssl = NULL;
-  std::string nick;
   bool handshake_ok = false;
   bool is_tls = false;
-  std::string username;
-  std::string hostname;
-  std::string servername;
-  std::string realname;
+  uint32_t user_id;
 
   std::shared_ptr<Connections> conns;
   std::shared_ptr<Users> users;

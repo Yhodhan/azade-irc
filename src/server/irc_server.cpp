@@ -8,6 +8,7 @@
 IrcServer::IrcServer() {
   this->init_ssl();
   this->conns = std::make_shared<Connections>();
+  this->users = std::make_shared<Users>();
 }
 
 void IrcServer::start() {
@@ -107,16 +108,17 @@ void IrcServer::accept_client(int sock, bool use_tls) {
   }
 
   std::shared_ptr<IrcConnection> client;
+  std::unique_ptr<User> user = std::make_unique<User>();
 
   if (use_tls)
-    client = std::make_shared<IrcConnection>(client_fd, this->ssl_ctx,
-                                             this->conns, this->users);
+    client = std::make_shared<IrcConnection>(
+        client_fd, user->get_id(), this->ssl_ctx, this->conns, this->users);
   else
-    client =
-        std::make_shared<IrcConnection>(client_fd, this->conns, this->users);
+    client = std::make_shared<IrcConnection>(client_fd, user->get_id(),
+                                             this->conns, this->users);
 
   // -----------------------
-  //    Store Connections 
+  //    Store Connections
   // -----------------------
   {
     std::lock_guard<std::mutex> lock(conns->mtx);
@@ -128,16 +130,20 @@ void IrcServer::accept_client(int sock, bool use_tls) {
   // -----------------------
   {
     std::lock_guard<std::mutex> lock(users->mtx);
-    User *user = new User();
-    this->users->users.insert({user->get_id(), *user});
+    this->users->users.insert({user->get_id(), std::move(user)});
   }
+
   // -----------------------
   //  Create working thread
   // -----------------------
-  std::thread([conns = this->conns, client_fd, client] {
+  std::thread([conns = this->conns, users = this->users, client_fd, client] {
     welcome_msg(client, client_fd);
 
     client->work_loop();
+    {
+      std::lock_guard<std::mutex> lock(users->mtx);
+      users->users.erase(client->get_user_id());
+    }
     {
       std::lock_guard<std::mutex> lock(conns->mtx);
       conns->connections.erase(client_fd);

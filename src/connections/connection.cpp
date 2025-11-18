@@ -4,14 +4,15 @@
 //      Constructors
 // -----------------------
 
-IrcConnection::IrcConnection(int fd, std::shared_ptr<Connections> conns,
-                             std::shared_ptr<Users> users)
-    : sock(fd), conns(conns) {}
-
-IrcConnection::IrcConnection(int fd, SSL_CTX *ssl_ctx,
+IrcConnection::IrcConnection(int fd, uint32_t id,
                              std::shared_ptr<Connections> conns,
                              std::shared_ptr<Users> users)
-    : sock(fd), conns(conns), users(users) {
+    : sock(fd), user_id(id), conns(conns) {}
+
+IrcConnection::IrcConnection(int fd, uint32_t id, SSL_CTX *ssl_ctx,
+                             std::shared_ptr<Connections> conns,
+                             std::shared_ptr<Users> users)
+    : sock(fd), user_id(id), conns(conns), users(users) {
   this->ssl = SSL_new(ssl_ctx);
   SSL_set_fd(ssl, sock);
 
@@ -42,6 +43,7 @@ IrcConnection::~IrcConnection() {
 SSL *IrcConnection::get_ssl() const { return this->ssl; }
 bool IrcConnection::get_is_tls() const { return this->is_tls; }
 bool IrcConnection::handshake_successful() const { return this->handshake_ok; }
+uint32_t IrcConnection::get_user_id() const { return this->user_id; }
 
 // -----------------------
 //      Main work loop
@@ -105,11 +107,12 @@ void IrcConnection::command_cap(Params params) {
   this->write_reply(std::string(":azade CAP * LS :"));
 }
 
-void IrcConnection::command_join(Params params) {}
+void IrcConnection::command_join(Params params) { (void)params; }
 
 void IrcConnection::command_nick(Params params) {
-  this->nick = params[0];
-  std::cout << "User nick is: " << this->nick << std::endl;
+  // get nick
+  // auto user = this->users->users[this->user_id].get();
+  // std::cout << "User nick is: " << this->nick << std::endl;
 }
 
 void IrcConnection::command_user(Params params) {
@@ -123,18 +126,4 @@ void IrcConnection::command_user(Params params) {
   //    write_reply("433 USER :User already registered");
   //    return;
   //  }
-
-  this->username = params[0];
-  this->hostname = params[1];
-  this->realname = params[2];
-  this->servername = params[3];
 }
-
-// ------------------
-//  Getter functions
-// ------------------
-
-std::string IrcConnection::get_username() { return this->username; }
-std::string IrcConnection::get_hostname() { return this->hostname; }
-std::string IrcConnection::get_servername() { return this->servername; }
-std::string IrcConnection::get_realname() { return this->realname; }
