@@ -1,5 +1,4 @@
 #include "server/irc_server.h"
-#include <memory>
 
 int main(void) {
   std::unique_ptr<IrcServer> server =

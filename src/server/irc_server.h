@@ -43,4 +43,5 @@ private:
   SSL_CTX *ssl_ctx = nullptr;
   // connections data structures
   std::shared_ptr<Connections> conns;
+  std::shared_ptr<Users> users;
 };

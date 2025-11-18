@@ -1,4 +1,5 @@
 #include "irc_server.h"
+#include <mutex>
 
 // -----------------------
 //      Constructors
@@ -108,15 +109,31 @@ void IrcServer::accept_client(int sock, bool use_tls) {
   std::shared_ptr<IrcConnection> client;
 
   if (use_tls)
-    client = std::make_shared<IrcConnection>(client_fd, this->ssl_ctx, this->conns);
+    client = std::make_shared<IrcConnection>(client_fd, this->ssl_ctx,
+                                             this->conns, this->users);
   else
-    client = std::make_shared<IrcConnection>(client_fd, this->conns);
+    client =
+        std::make_shared<IrcConnection>(client_fd, this->conns, this->users);
 
+  // -----------------------
+  //    Store Connections 
+  // -----------------------
   {
     std::lock_guard<std::mutex> lock(conns->mtx);
     this->conns->connections.insert({client_fd, client});
   }
 
+  // -----------------------
+  //       Store Users
+  // -----------------------
+  {
+    std::lock_guard<std::mutex> lock(users->mtx);
+    User *user = new User();
+    this->users->users.insert({user->get_id(), *user});
+  }
+  // -----------------------
+  //  Create working thread
+  // -----------------------
   std::thread([conns = this->conns, client_fd, client] {
     welcome_msg(client, client_fd);
 

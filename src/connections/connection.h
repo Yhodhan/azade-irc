@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../commands/commands.h"
+#include "../users/user.h"
 #include <arpa/inet.h>
 #include <cstring>
 #include <iostream>
@@ -25,8 +26,12 @@ struct Connections {
 class IrcConnection {
 
 public:
-  IrcConnection(int fd, std::shared_ptr<Connections> conns);
-  IrcConnection(int fd, SSL_CTX *ssl_ctx, std::shared_ptr<Connections> conns);
+  IrcConnection(int fd, std::shared_ptr<Connections> conns,
+                std::shared_ptr<Users> users);
+
+  IrcConnection(int fd, SSL_CTX *ssl_ctx, std::shared_ptr<Connections> conns,
+                std::shared_ptr<Users> users);
+
   ~IrcConnection();
 
   SSL *get_ssl() const;
@@ -46,6 +51,7 @@ protected:
   bool user_exist(Params params);
   // Handle commands
   void command_cap(Params params);
+  void command_join(Params params);
   void command_nick(Params params);
   void command_user(Params params);
 
@@ -61,4 +67,5 @@ private:
   std::string realname;
 
   std::shared_ptr<Connections> conns;
+  std::shared_ptr<Users> users;
 };

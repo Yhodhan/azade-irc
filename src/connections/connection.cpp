@@ -4,12 +4,14 @@
 //      Constructors
 // -----------------------
 
-IrcConnection::IrcConnection(int fd, std::shared_ptr<Connections> conns)
+IrcConnection::IrcConnection(int fd, std::shared_ptr<Connections> conns,
+                             std::shared_ptr<Users> users)
     : sock(fd), conns(conns) {}
 
 IrcConnection::IrcConnection(int fd, SSL_CTX *ssl_ctx,
-                             std::shared_ptr<Connections> conns)
-    : sock(fd), conns(conns) {
+                             std::shared_ptr<Connections> conns,
+                             std::shared_ptr<Users> users)
+    : sock(fd), conns(conns), users(users) {
   this->ssl = SSL_new(ssl_ctx);
   SSL_set_fd(ssl, sock);
 
@@ -80,10 +82,10 @@ void IrcConnection::handle_command(std::string command) {
   Command cmd = parse_command(command);
   switch (cmd.cmd) {
   case CAP:
-    this->write_reply(std::string(":azade CAP * LS :"));
+    command_cap(cmd.params);
     break;
   case JOIN:
-    // this->write_reply(std::string("JOIN command"));
+    command_join(cmd.params);
     break;
   case NICK:
     command_nick(cmd.params);
@@ -99,6 +101,12 @@ void IrcConnection::handle_command(std::string command) {
 // ------------------
 //     Commands
 // ------------------
+void IrcConnection::command_cap(Params params) {
+  this->write_reply(std::string(":azade CAP * LS :"));
+}
+
+void IrcConnection::command_join(Params params) {}
+
 void IrcConnection::command_nick(Params params) {
   this->nick = params[0];
   std::cout << "User nick is: " << this->nick << std::endl;
@@ -111,10 +119,10 @@ void IrcConnection::command_user(Params params) {
     return;
   }
 
-//  if (user_exist(params)) {
-//    write_reply("433 USER :User already registered");
-//    return;
-//  }
+  //  if (user_exist(params)) {
+  //    write_reply("433 USER :User already registered");
+  //    return;
+  //  }
 
   this->username = params[0];
   this->hostname = params[1];
@@ -123,7 +131,7 @@ void IrcConnection::command_user(Params params) {
 }
 
 // ------------------
-//  Helper functions
+//  Getter functions
 // ------------------
 
 std::string IrcConnection::get_username() { return this->username; }
