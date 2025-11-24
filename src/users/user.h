@@ -21,6 +21,7 @@ class User {
 public:
   User();
   ~User();
+  std::string get_nick();
   void set_nick(const std::string nick);
   uint32_t get_id();
   

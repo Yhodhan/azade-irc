@@ -48,10 +48,12 @@ uint32_t IrcConnection::get_user_id() const { return this->user_id; }
 // -----------------------
 //      Main work loop
 // -----------------------
+
 ssize_t IrcConnection::read_msg(char *buffer) {
   return this->is_tls ? SSL_read(this->ssl, buffer, sizeof(buffer) - 1)
                       : read(this->sock, buffer, sizeof(buffer) - 1);
 }
+
 void IrcConnection::write_reply(std::string reply) {
   reply += "\r\n";
   this->is_tls ? SSL_write(this->ssl, reply.c_str(), reply.size())
@@ -65,8 +67,10 @@ void IrcConnection::work_loop() {
   while (true) {
     ssize_t bytes = this->read_msg(buffer);
 
-    if (bytes <= 0)
+    if (bytes <= 0) {
+      std::cout << "Closed connection" << std::endl;
       break;
+    }
 
     cmd.append(buffer, bytes);
 
@@ -103,27 +107,45 @@ void IrcConnection::handle_command(std::string command) {
 // ------------------
 //     Commands
 // ------------------
+
+// ------------------
+//    Cap command
 void IrcConnection::command_cap(Params params) {
   this->write_reply(std::string(":azade CAP * LS :"));
 }
 
 void IrcConnection::command_join(Params params) { (void)params; }
 
+// ------------------
+//    Nick command
 void IrcConnection::command_nick(Params params) {
   // get nick
-  // auto user = this->users->users[this->user_id].get();
-  // std::cout << "User nick is: " << this->nick << std::endl;
+  {
+   std::lock_guard<std::mutex> lock(this->users->mtx);
+   auto user = this->users->users[this->user_id].get();
+   user->set_nick(params[0]);
+   std::cout << "User nick is: " << user->get_nick() << std::endl;
+  }
 }
 
-void IrcConnection::command_user(Params params) {
+bool IrcConnection::user_exists() {
+  if(this->users->users.find(this->user_id)
+     != this->users->users.end())
+      return true;
+  else
+   return false;
+}
 
+// ------------------
+//   User command
+void IrcConnection::command_user(Params params) {
   if (params.size() < 4) {
     write_reply("461 USER :Not enough parameters");
     return;
   }
 
-  //  if (user_exist(params)) {
-  //    write_reply("433 USER :User already registered");
-  //    return;
-  //  }
+  if (this->user_exists()) {
+    write_reply("433 USER :User already registered");
+    return;
+  }
 }

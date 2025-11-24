@@ -1,5 +1,4 @@
 #include "irc_server.h"
-#include <mutex>
 
 // -----------------------
 //      Constructors
@@ -106,6 +105,8 @@ void IrcServer::accept_client(int sock, bool use_tls) {
     perror("Accept");
     return;
   }
+
+  std::cout << "Connection Accepted\n";
 
   std::shared_ptr<IrcConnection> client;
   std::unique_ptr<User> user = std::make_unique<User>();

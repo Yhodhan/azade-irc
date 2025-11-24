@@ -46,12 +46,12 @@ protected:
   ssize_t read_msg(char *buffer);
   void write_reply(const std::string reply);
   void handle_command(std::string cmd);
-  bool user_exist(Params params);
   // Handle commands
   void command_cap(Params params);
   void command_join(Params params);
   void command_nick(Params params);
   void command_user(Params params);
+  bool user_exists();
 
 private:
   int sock;
