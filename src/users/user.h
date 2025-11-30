@@ -10,11 +10,11 @@
 
 class User;
 
-using UserMap = std::unordered_map<int, std::unique_ptr<User>>;
+using UserMap = std::unordered_map<int, std::shared_ptr<User>>;
 
 struct Users {
  std::mutex mtx;
- UserMap users;
+ UserMap users_map;
 };
 
 class User {
@@ -32,7 +32,7 @@ public:
 
 private:
   uint32_t id;
-  std::string nick;
+  std::string nick = "";
   std::string username;
   std::string hostname;
   std::string servername;

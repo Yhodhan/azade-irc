@@ -49,9 +49,9 @@ uint32_t IrcConnection::get_user_id() const { return this->user_id; }
 //      Main work loop
 // -----------------------
 
-ssize_t IrcConnection::read_msg(char *buffer) {
-  return this->is_tls ? SSL_read(this->ssl, buffer, sizeof(buffer) - 1)
-                      : read(this->sock, buffer, sizeof(buffer) - 1);
+ssize_t IrcConnection::read_msg(char *buffer, size_t size) {
+  return this->is_tls ? SSL_read(this->ssl, buffer, size - 1)
+                      : read(this->sock, buffer, size - 1);
 }
 
 void IrcConnection::write_reply(std::string reply) {
@@ -65,7 +65,7 @@ void IrcConnection::work_loop() {
 
   std::string cmd;
   while (true) {
-    ssize_t bytes = this->read_msg(buffer);
+    ssize_t bytes = this->read_msg(buffer, sizeof(buffer));
 
     if (bytes <= 0) {
       std::cout << "Closed connection" << std::endl;
@@ -82,6 +82,7 @@ void IrcConnection::work_loop() {
       this->handle_command(msg);
     }
   }
+  std::cout << "Out of work loop" << std::endl;
 }
 
 void IrcConnection::handle_command(std::string command) {
@@ -104,6 +105,9 @@ void IrcConnection::handle_command(std::string command) {
   }
 }
 
+ std::shared_ptr<User> IrcConnection::get_user() { 
+   auto user = this->users->users[this->user_id].get();
+}
 // ------------------
 //     Commands
 // ------------------
@@ -111,7 +115,8 @@ void IrcConnection::handle_command(std::string command) {
 // ------------------
 //    Cap command
 void IrcConnection::command_cap(Params params) {
-  this->write_reply(std::string(":azade CAP * LS :"));
+  auto nick = this->users->users_map[this->user_id].get();
+  this->write_reply(std::string(":azade CAP "  " LS :"));
 }
 
 void IrcConnection::command_join(Params params) { (void)params; }
@@ -121,7 +126,7 @@ void IrcConnection::command_join(Params params) { (void)params; }
 void IrcConnection::command_nick(Params params) {
   // get nick
   {
-   std::lock_guard<std::mutex> lock(this->users->mtx);
+   std::lock_guard<std::mutex> lock(this->users_map->mtx);
    auto user = this->users->users[this->user_id].get();
    user->set_nick(params[0]);
    std::cout << "User nick is: " << user->get_nick() << std::endl;
@@ -129,8 +134,8 @@ void IrcConnection::command_nick(Params params) {
 }
 
 bool IrcConnection::user_exists() {
-  if(this->users->users.find(this->user_id)
-     != this->users->users.end())
+  if(this->users->users_map.find(this->user_id)
+     != this->users->users_map.end())
       return true;
   else
    return false;

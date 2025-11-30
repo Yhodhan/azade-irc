@@ -43,15 +43,16 @@ public:
   uint32_t get_user_id() const;
 
 protected:
-  ssize_t read_msg(char *buffer);
-  void write_reply(const std::string reply);
   void handle_command(std::string cmd);
+  void write_reply(const std::string reply);
+  ssize_t read_msg(char *buffer, size_t size);
   // Handle commands
+  bool user_exists();
   void command_cap(Params params);
   void command_join(Params params);
   void command_nick(Params params);
   void command_user(Params params);
-  bool user_exists();
+  std::shared_ptr<User> get_user();
 
 private:
   int sock;

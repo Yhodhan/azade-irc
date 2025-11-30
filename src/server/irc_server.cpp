@@ -109,7 +109,7 @@ void IrcServer::accept_client(int sock, bool use_tls) {
   std::cout << "Connection Accepted\n";
 
   std::shared_ptr<IrcConnection> client;
-  std::unique_ptr<User> user = std::make_unique<User>();
+  std::shared_ptr<User> user = std::make_shared<User>();
 
   if (use_tls)
     client = std::make_shared<IrcConnection>(
@@ -131,7 +131,7 @@ void IrcServer::accept_client(int sock, bool use_tls) {
   // -----------------------
   {
     std::lock_guard<std::mutex> lock(users->mtx);
-    this->users->users.insert({user->get_id(), std::move(user)});
+    this->users->users_map.insert({user->get_id(), std::move(user)});
   }
 
   // -----------------------
@@ -143,7 +143,7 @@ void IrcServer::accept_client(int sock, bool use_tls) {
     client->work_loop();
     {
       std::lock_guard<std::mutex> lock(users->mtx);
-      users->users.erase(client->get_user_id());
+      users->users_map.erase(client->get_user_id());
     }
     {
       std::lock_guard<std::mutex> lock(conns->mtx);
