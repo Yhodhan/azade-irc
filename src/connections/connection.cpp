@@ -105,8 +105,8 @@ void IrcConnection::handle_command(std::string command) {
   }
 }
 
- std::shared_ptr<User> IrcConnection::get_user() { 
-   auto user = this->users->users[this->user_id].get();
+std::shared_ptr<User> IrcConnection::get_user() { 
+  return this->users->users_map[this->user_id];
 }
 // ------------------
 //     Commands
@@ -115,8 +115,17 @@ void IrcConnection::handle_command(std::string command) {
 // ------------------
 //    Cap command
 void IrcConnection::command_cap(Params params) {
-  auto nick = this->users->users_map[this->user_id].get();
-  this->write_reply(std::string(":azade CAP "  " LS :"));
+  std::string msg;
+  auto user = this->get_user();
+  auto nick = user->get_nick();
+
+  if (nick == "")
+    msg = std::string(":azade CAP * LS :");
+  else 
+    msg = std::string(":azade CAP ") + nick + " LS :";
+
+  std::cout << "CAP reply is: " << msg << std::endl;
+  this->write_reply(msg);
 }
 
 void IrcConnection::command_join(Params params) { (void)params; }
@@ -126,8 +135,8 @@ void IrcConnection::command_join(Params params) { (void)params; }
 void IrcConnection::command_nick(Params params) {
   // get nick
   {
-   std::lock_guard<std::mutex> lock(this->users_map->mtx);
-   auto user = this->users->users[this->user_id].get();
+   std::lock_guard<std::mutex> lock(this->users->mtx);
+   auto user = this->users->users_map[this->user_id].get();
    user->set_nick(params[0]);
    std::cout << "User nick is: " << user->get_nick() << std::endl;
   }
@@ -149,8 +158,15 @@ void IrcConnection::command_user(Params params) {
     return;
   }
 
-  if (this->user_exists()) {
-    write_reply("433 USER :User already registered");
-    return;
-  }
+  //if (this->user_exists()) {
+  //  write_reply("433 USER :User already registered");
+  //  return;
+  //}
+  auto user = this->get_user();
+  auto nick = user->get_nick();
+
+  write_reply("001 " + nick + " :Welcome to the Azade IRC Server");
+  write_reply("002 " + nick + " :Your host is azade, running version 0.1");
+  write_reply("003 " + nick + " :This server was created today");
+  write_reply("004 " + nick + " azade 0.1 o o");
 }
