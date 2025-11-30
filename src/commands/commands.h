@@ -11,6 +11,7 @@ enum COMMAND {
   JOIN,
   NICK,
   USER,
+  PING,
   INVALID,
 };
 

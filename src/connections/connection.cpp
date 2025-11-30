@@ -82,7 +82,6 @@ void IrcConnection::work_loop() {
       this->handle_command(msg);
     }
   }
-  std::cout << "Out of work loop" << std::endl;
 }
 
 void IrcConnection::handle_command(std::string command) {
@@ -99,6 +98,9 @@ void IrcConnection::handle_command(std::string command) {
     break;
   case USER:
     command_user(cmd.params);
+    break;
+  case PING:
+    command_ping(cmd.params);
     break;
   default:
     this->write_reply(std::string("INVALID command"));
@@ -124,7 +126,6 @@ void IrcConnection::command_cap(Params params) {
   else 
     msg = std::string(":azade CAP ") + nick + " LS :";
 
-  std::cout << "CAP reply is: " << msg << std::endl;
   this->write_reply(msg);
 }
 
@@ -143,9 +144,10 @@ void IrcConnection::command_nick(Params params) {
 }
 
 bool IrcConnection::user_exists() {
-  if(this->users->users_map.find(this->user_id)
-     != this->users->users_map.end())
-      return true;
+  auto user = this->users->users_map.find(this->user_id);
+
+  if(user != this->users->users_map.end())
+    return true; 
   else
    return false;
 }
@@ -158,10 +160,11 @@ void IrcConnection::command_user(Params params) {
     return;
   }
 
-  //if (this->user_exists()) {
-  //  write_reply("433 USER :User already registered");
-  //  return;
-  //}
+//  if (this->user_exists()) {
+//    write_reply("433 USER :User already registered");
+//    return;
+//  }
+
   auto user = this->get_user();
   auto nick = user->get_nick();
 
@@ -169,4 +172,13 @@ void IrcConnection::command_user(Params params) {
   write_reply("002 " + nick + " :Your host is azade, running version 0.1");
   write_reply("003 " + nick + " :This server was created today");
   write_reply("004 " + nick + " azade 0.1 o o");
+}
+
+void IrcConnection::command_ping(Params params) {
+  if (params.empty()) {
+    auto nick = this->get_user()->get_nick();
+    write_reply("409 " + nick + " :No origin specified");
+  }
+
+  write_reply("PONG " + params[0]);
 }

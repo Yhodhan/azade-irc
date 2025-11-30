@@ -31,6 +31,8 @@ Command get_command(Params command) {
     return Command(NICK, command);
   else if (cmd == "USER")
     return Command(USER, command);
+  else if (cmd == "PING")
+    return Command(PING, command);
   else
     return Command(INVALID, Params({}));
 }
