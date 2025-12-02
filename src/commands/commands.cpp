@@ -33,6 +33,8 @@ Command get_command(Params command) {
     return Command(USER, command);
   else if (cmd == "PING")
     return Command(PING, command);
+  else if (cmd == "MODE")
+    return Command(MODE, command);
   else
     return Command(INVALID, Params({}));
 }

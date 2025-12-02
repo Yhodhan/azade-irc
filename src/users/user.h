@@ -37,6 +37,7 @@ private:
   std::string hostname;
   std::string servername;
   std::string realname;
+  uint32_t modes;   
 
   std::vector<Channel> channels;
 };

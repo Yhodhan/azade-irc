@@ -12,6 +12,7 @@ enum COMMAND {
   NICK,
   USER,
   PING,
+  MODE,
   INVALID,
 };
 

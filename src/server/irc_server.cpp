@@ -138,7 +138,7 @@ void IrcServer::accept_client(int sock, bool use_tls) {
   //  Create working thread
   // -----------------------
   std::thread([conns = this->conns, users = this->users, client_fd, client] {
-    welcome_msg(client, client_fd);
+    //welcome_msg(client, client_fd);
 
     client->work_loop();
     {

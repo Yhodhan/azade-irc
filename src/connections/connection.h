@@ -53,6 +53,7 @@ protected:
   void command_nick(Params params);
   void command_user(Params params);
   void command_ping(Params params);
+  void command_mode(Params params);
   std::shared_ptr<User> get_user();
 
 private:

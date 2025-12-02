@@ -102,6 +102,9 @@ void IrcConnection::handle_command(std::string command) {
   case PING:
     command_ping(cmd.params);
     break;
+  case MODE:
+    command_mode(cmd.params);
+    break;
   default:
     this->write_reply(std::string("INVALID command"));
   }
@@ -169,9 +172,9 @@ void IrcConnection::command_user(Params params) {
   auto nick = user->get_nick();
 
   write_reply("001 " + nick + " :Welcome to the Azade IRC Server");
-  write_reply("002 " + nick + " :Your host is azade, running version 0.1");
-  write_reply("003 " + nick + " :This server was created today");
-  write_reply("004 " + nick + " azade 0.1 o o");
+  //write_reply("002 " + nick + " :Your host is azade, running version 0.1");
+  ////write_reply("003 " + nick + " :This server was created today");
+  //write_reply("004 " + nick + " azade 0.1 o o");
 }
 
 void IrcConnection::command_ping(Params params) {
@@ -181,4 +184,8 @@ void IrcConnection::command_ping(Params params) {
   }
 
   write_reply("PONG " + params[0]);
+}
+
+void IrcConnection::command_mode(Params params) {
+
 }
