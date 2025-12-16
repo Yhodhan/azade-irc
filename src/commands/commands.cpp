@@ -35,6 +35,8 @@ Command get_command(Params command) {
     return Command(PING, command);
   else if (cmd == "MODE")
     return Command(MODE, command);
+  else if (cmd == "QUIT")
+    return Command(QUIT, command);
   else
     return Command(INVALID, Params({}));
 }

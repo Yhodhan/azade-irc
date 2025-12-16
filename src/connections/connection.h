@@ -54,13 +54,15 @@ protected:
   void command_user(Params params);
   void command_ping(Params params);
   void command_mode(Params params);
+  void command_quit(Params params);
   std::shared_ptr<User> get_user();
 
 private:
   int sock;
   SSL *ssl = NULL;
-  bool handshake_ok = false;
   bool is_tls = false;
+  bool handshake_ok = false;
+  bool client_quit = false;
   uint32_t user_id;
 
   std::shared_ptr<Connections> conns;

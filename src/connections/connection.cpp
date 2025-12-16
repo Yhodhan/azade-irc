@@ -81,6 +81,8 @@ void IrcConnection::work_loop() {
       std::cout << "Command to execute: " << msg << std::endl;
       this->handle_command(msg);
     }
+
+    if (this->client_quit) break;
   }
 }
 
@@ -105,6 +107,9 @@ void IrcConnection::handle_command(std::string command) {
   case MODE:
     command_mode(cmd.params);
     break;
+  case QUIT:
+    command_quit(cmd.params);
+  break;
   default:
     this->write_reply(std::string("INVALID command"));
   }
@@ -187,5 +192,12 @@ void IrcConnection::command_ping(Params params) {
 }
 
 void IrcConnection::command_mode(Params params) {
+}
 
+void IrcConnection::command_quit(Params params) {	
+  this->client_quit = true;  
+
+  if (params.size() == 0)
+    return;
+  // else broadcast the message
 }
