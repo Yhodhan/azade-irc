@@ -216,13 +216,19 @@ void IrcConnection::command_mode(Params params) {
   auto user = this->get_user();
   auto nick = user->get_nick();
 
-  if (params.size() == 0) {
+  if (params.size() < 2) {
     write_reply("461" + nick + ":Not enough parameters");
     return;
   }
 
-  auto modes = params[0];
+  if (params[0] != nick) {
+    write_reply("502" + nick + ":User do not match");
+    return;
+  }
+
+  auto modes = params[1];
   bool enable;
+
   for (char c : modes) {
     if (c == '+') { enable = true; continue;} 
     if (c == '-') { enable = false; continue;} 
