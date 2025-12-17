@@ -9,6 +9,14 @@ void User::set_nick(const std::string nick) { this->nick = nick; }
 
 uint32_t User::get_id() { return this->id; }
 
+// if enable is true then OR to signal the bit
+// otherwise AND with the negation of the mode turns off the signal bit
+// mode = 0001 -> ~mode = 1110
+// this preserves the other bits unchanged with AND operation. 
+void User::change_mode(UserMode mode, bool enable) { 
+    enable ? modes |= mode
+           : modes &= ~(mode);
+}
 // ------------------
 //  Getter functions
 // ------------------

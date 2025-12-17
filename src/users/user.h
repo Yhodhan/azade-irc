@@ -17,6 +17,14 @@ struct Users {
  UserMap users_map;
 };
 
+enum UserMode {
+  MODE_INVISIBLE = 1 << 0,
+  MODE_WALLOPS = 1 << 1,
+  MODE_RESTRICTED = 1 << 2,
+  MODE_OPERATOR = 1 << 3,
+  UNKNOWN,
+};
+
 class User {
 public:
   User();
@@ -29,6 +37,7 @@ public:
   std::string get_hostname();
   std::string get_servername();
   std::string get_realname();
+  void change_mode(UserMode mode, bool enable);
 
 private:
   uint32_t id;
@@ -37,7 +46,7 @@ private:
   std::string hostname;
   std::string servername;
   std::string realname;
-  uint32_t modes;   
+  uint8_t modes = 0;   
 
   std::vector<Channel> channels;
 };

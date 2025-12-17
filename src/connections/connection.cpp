@@ -191,7 +191,42 @@ void IrcConnection::command_ping(Params params) {
   write_reply("PONG " + params[0]);
 }
 
-void IrcConnection::command_mode(Params params) {
+// ------------------
+//   Mode command
+
+UserMode char_to_flag(char flag) {
+  switch (flag) {
+    case 'w': return MODE_WALLOPS; 
+    case 'o': return MODE_OPERATOR; 
+    case 'i': return MODE_INVISIBLE; 
+    case 'r': return MODE_RESTRICTED;
+    default : return UNKNOWN;
+  }
+}
+
+void IrcConnection::command_mode(Params params) { 
+  auto user = this->get_user();
+  auto nick = user->get_nick();
+
+  if (params.size() == 0) {
+    write_reply("461" + nick + ":Not enough parameters");
+    return;
+  }
+
+  auto modes = params[0];
+  bool enable;
+  for (char c : modes) {
+    if (c == '+') { enable = true; continue;} 
+    if (c == '-') { enable = false; continue;} 
+  
+    auto mode = char_to_flag(c);
+    if (mode == UNKNOWN) {
+      write_reply("501" + nick + ":Not a valid mode");
+      return;
+    }
+
+    user->change_mode(mode, enable);
+  }
 }
 
 void IrcConnection::command_quit(Params params) {	
