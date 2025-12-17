@@ -42,8 +42,8 @@ IrcConnection::~IrcConnection() {
 
 SSL *IrcConnection::get_ssl() const { return this->ssl; }
 bool IrcConnection::get_is_tls() const { return this->is_tls; }
-bool IrcConnection::handshake_successful() const { return this->handshake_ok; }
 uint32_t IrcConnection::get_user_id() const { return this->user_id; }
+bool IrcConnection::handshake_successful() const { return this->handshake_ok; }
 
 // -----------------------
 //      Main work loop
@@ -124,6 +124,8 @@ std::shared_ptr<User> IrcConnection::get_user() {
 
 // ------------------
 //    Cap command
+// ------------------
+
 void IrcConnection::command_cap(Params params) {
   std::string msg;
   auto user = this->get_user();
@@ -142,7 +144,6 @@ void IrcConnection::command_join(Params params) { (void)params; }
 // ------------------
 //    Nick command
 void IrcConnection::command_nick(Params params) {
-  // get nick
   {
    std::lock_guard<std::mutex> lock(this->users->mtx);
    auto user = this->users->users_map[this->user_id].get();
@@ -161,7 +162,9 @@ bool IrcConnection::user_exists() {
 }
 
 // ------------------
-//   User command
+//    User command
+// ------------------
+
 void IrcConnection::command_user(Params params) {
   if (params.size() < 4) {
     write_reply("461 USER :Not enough parameters");
@@ -182,6 +185,10 @@ void IrcConnection::command_user(Params params) {
   //write_reply("004 " + nick + " azade 0.1 o o");
 }
 
+// ------------------
+//   Mode command
+// ------------------
+
 void IrcConnection::command_ping(Params params) {
   if (params.empty()) {
     auto nick = this->get_user()->get_nick();
@@ -193,6 +200,7 @@ void IrcConnection::command_ping(Params params) {
 
 // ------------------
 //   Mode command
+// ------------------
 
 UserMode char_to_flag(char flag) {
   switch (flag) {
@@ -229,6 +237,9 @@ void IrcConnection::command_mode(Params params) {
   }
 }
 
+// ------------------
+//    Quit Command 
+// ------------------
 void IrcConnection::command_quit(Params params) {	
   this->client_quit = true;  
 
