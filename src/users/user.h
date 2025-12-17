@@ -22,7 +22,7 @@ enum UserMode {
   MODE_WALLOPS = 1 << 1,
   MODE_RESTRICTED = 1 << 2,
   MODE_OPERATOR = 1 << 3,
-  UNKNOWN,
+  UNKNOWN = 0,
 };
 
 class User {
