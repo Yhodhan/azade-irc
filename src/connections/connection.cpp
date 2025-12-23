@@ -17,10 +17,8 @@ IrcConnection::IrcConnection(int fd, uint32_t id, SSL_CTX *ssl_ctx,
   SSL_set_fd(ssl, sock);
 
   if (SSL_accept(ssl) <= 0) {
-    std::cerr << "TLS handshake failed" << std::endl;
     ERR_print_errors_fp(stderr);
   } else {
-    std::cout << "TLS handshake complete" << std::endl;
     this->handshake_ok = true;
     this->is_tls = true;
   }
@@ -139,7 +137,9 @@ void IrcConnection::command_cap(Params params) {
   this->write_reply(msg);
 }
 
-void IrcConnection::command_join(Params params) { (void)params; }
+void IrcConnection::command_join(Params params) {
+
+}
 
 // ------------------
 //    Nick command
@@ -217,12 +217,12 @@ void IrcConnection::command_mode(Params params) {
   auto nick = user->get_nick();
 
   if (params.size() < 2) {
-    write_reply("461" + nick + ":Not enough parameters");
+    write_reply("461 " + nick + ":Not enough parameters");
     return;
   }
 
   if (params[0] != nick) {
-    write_reply("502" + nick + ":User do not match");
+    write_reply("502 " + nick + ":User do not match");
     return;
   }
 

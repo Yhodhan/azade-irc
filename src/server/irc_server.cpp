@@ -10,23 +10,51 @@ IrcServer::IrcServer() {
   this->users = std::make_shared<Users>();
 }
 
-void IrcServer::start() {
+void IrcServer::start(void) {
   // listen to ports
-  this->tls_socket = setup_socket(this->tls_port);
-  this->plain_socket = setup_socket(this->plain_port);
+  try {
+    // create the sockets of the server
+    this->tls_socket = setup_socket(this->tls_port);
+    this->plain_socket = setup_socket(this->plain_port);
 
-  std::thread([this] { this->accept_client(this->tls_socket, true); }).detach();
-  std::thread([this] {
-    this->accept_client(this->plain_socket, false);
-  }).detach();
+    // create event poll
+    this->setup_poll();
 
-  while (true)
-    std::this_thread::sleep_for(std::chrono::hours(1));
+    int num_events;
+
+    // cycle the fds to handle events
+    while (true) {
+      num_events = this->poll_wait();
+      for (int i = 0; i < num_events; i++) {        
+        // its a connection
+        if (this->events[i].data.fd == this->plain_socket) 
+          accept_client(this->plain_socket, false);
+
+        if (this->events[i].data.fd == this->tls_socket) 
+          accept_client(this->tls_socket, true);
+
+        else 
+          handle_connection(&this->events[i]);
+      }
+    }
+  }
+
+  // Killer exceptions
+  catch (IrcServer::socketException &e){ print_error(e.what(), true); return; }
+  catch (IrcServer::bindException &e){ print_error(e.what(), true); return; }
+  catch (IrcServer::pollException &e){ print_error(e.what(), true); return; }
+  catch (IrcServer::pollWaitException &e){ print_error(e.what(), true); return; }
+}
+
+void IrcServer::handle_connection(struct epoll_event *event) {
+
 }
 
 int IrcServer::setup_socket(int port) {
   // socket creation
-  int sock = socket(AF_INET, SOCK_STREAM, 0);
+  int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  if (sockfd == -1) 
+    throw IrcServer::socketException();
 
   // specify address
   sockaddr_in addr{};
@@ -34,17 +62,44 @@ int IrcServer::setup_socket(int port) {
   srv_address.sin_port = htons(port);
   srv_address.sin_addr.s_addr = INADDR_ANY;
 
-  int val = bind(sock, (struct sockaddr *)&srv_address, sizeof(addr));
+  if (bind(sockfd, (struct sockaddr *)&srv_address, \
+  sizeof(addr)) == -1) 
+    throw IrcServer::bindException();
 
-  if (val == -1) {
-    // do some proper handling error on this
-    std::cerr << "Error binding the port" << std::endl;
-    exit(1);
-  }
+  if (listen(sockfd, SOMAXCONN) == -1)
+    throw IrcServer::bindException();
 
-  listen(sock, SOMAXCONN);
+  return sockfd;  
+}
 
-  return sock;
+void IrcServer::setup_poll(void) {
+  // create a epoll for handling events
+  this->epoll = epoll_create1(0);
+
+  if (epoll == -1) 
+    throw IrcServer::pollException();
+
+  // add the fd to the polling events
+  int ectlfd;
+  event.events = EPOLLIN;
+  event.data.fd = this->plain_socket; 
+  ectlfd = epoll_ctl(epoll, EPOLL_CTL_ADD, this->plain_socket, &event); 
+
+  if (ectlfd == -1) 
+    throw IrcServer::pollException();
+
+  event.data.fd = this->tls_socket; 
+  ectlfd = epoll_ctl(epoll, EPOLL_CTL_ADD, this->tls_socket, &event); 
+
+  if (ectlfd == -1) 
+    throw IrcServer::pollException();
+}
+
+int IrcServer::poll_wait(void) {
+  int num_events = epoll_wait(epoll, events, MAX_EVENTS, -1);
+  if (num_events == -1) 
+    throw IrcServer::pollWaitException();
+  return num_events;
 }
 
 // -----------------------
@@ -81,6 +136,17 @@ IrcServer::~IrcServer() {
   close(this->plain_socket);
 }
 
+// -----------------------
+//       Error Printer 
+// -----------------------
+
+void IrcServer::print_error(const std::string msg, bool with_errno) {
+  std::cout << msg;
+  if (with_errno)
+    std::cout << strerror(errno);
+  std::cout << std::endl;
+}
+
 // -----------------------------
 //  Accept incoming connections
 // -----------------------------
@@ -97,6 +163,7 @@ void welcome_msg(std::shared_ptr<IrcConnection> client, int fd) {
 
 void IrcServer::accept_client(int sock, bool use_tls) {
 
+  std::cout << "enter accept client" << std::endl;
   int client_fd = accept(sock, nullptr, nullptr);
   // ------------------------------------
   // Create connection object and thread
@@ -151,3 +218,19 @@ void IrcServer::accept_client(int sock, bool use_tls) {
     }
   }).detach();
 }
+
+/* --------------------------------*/
+/*          Exceptions             */
+/* --------------------------------*/
+
+const char	*IrcServer::socketException::what() const throw()
+{ return ("Socket creation or mode error: "); }
+
+const char	*IrcServer::bindException::what() const throw()
+{ return ("Bind error: "); }
+
+const char	*IrcServer::pollException::what() const throw()
+{ return ("Poll error: "); }
+
+const char	*IrcServer::pollWaitException::what() const throw()
+{ return ("Poll wail error: "); }
