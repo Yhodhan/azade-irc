@@ -27,8 +27,12 @@ void IrcServer::start(void) {
       num_events = this->poll_wait();
       for (int i = 0; i < num_events; i++) {        
         // its a connection
-        if (this->events[i].data.fd == this->plain_port) 
+        if (this->events[i].data.fd == this->plain_socket) 
           accept_client(this->plain_socket, false);
+
+        if (this->events[i].data.fd == this->tls_socket) 
+          accept_client(this->tls_socket, true);
+
         else 
           handle_connection(&this->events[i]);
       }
@@ -59,7 +63,7 @@ int IrcServer::setup_socket(int port) {
   srv_address.sin_addr.s_addr = INADDR_ANY;
 
   if (bind(sockfd, (struct sockaddr *)&srv_address, \
-    sizeof(addr) == -1)) 
+  sizeof(addr)) == -1) 
     throw IrcServer::bindException();
 
   if (listen(sockfd, SOMAXCONN) == -1)
@@ -76,9 +80,16 @@ void IrcServer::setup_poll(void) {
     throw IrcServer::pollException();
 
   // add the fd to the polling events
+  int ectlfd;
   event.events = EPOLLIN;
   event.data.fd = this->plain_socket; 
-  int ectlfd = epoll_ctl(epoll, EPOLL_CTL_ADD, plain_socket, &event); 
+  ectlfd = epoll_ctl(epoll, EPOLL_CTL_ADD, this->plain_socket, &event); 
+
+  if (ectlfd == -1) 
+    throw IrcServer::pollException();
+
+  event.data.fd = this->tls_socket; 
+  ectlfd = epoll_ctl(epoll, EPOLL_CTL_ADD, this->tls_socket, &event); 
 
   if (ectlfd == -1) 
     throw IrcServer::pollException();
@@ -88,7 +99,6 @@ int IrcServer::poll_wait(void) {
   int num_events = epoll_wait(epoll, events, MAX_EVENTS, -1);
   if (num_events == -1) 
     throw IrcServer::pollWaitException();
-
   return num_events;
 }
 
@@ -153,6 +163,7 @@ void welcome_msg(std::shared_ptr<IrcConnection> client, int fd) {
 
 void IrcServer::accept_client(int sock, bool use_tls) {
 
+  std::cout << "enter accept client" << std::endl;
   int client_fd = accept(sock, nullptr, nullptr);
   // ------------------------------------
   // Create connection object and thread
