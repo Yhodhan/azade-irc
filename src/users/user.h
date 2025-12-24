@@ -1,21 +1,15 @@
 #pragma once
 
-#include "../channels/channel.h"
 #include <cstdint>
 #include <mutex>
 #include <vector>
 #include <string>
-#include <unordered_map>
+#include <map>
 #include <memory>
 
 class User;
 
-using UserMap = std::unordered_map<int, std::shared_ptr<User>>;
-
-struct Users {
- std::mutex mtx;
- UserMap users_map;
-};
+using UserMap = std::map<int, User *>;
 
 enum UserMode {
   MODE_INVISIBLE  = 1 << 0,
@@ -47,5 +41,4 @@ private:
   std::string hostname;
   std::string servername;
   std::string realname;
-  std::vector<Channel> channels;
 };

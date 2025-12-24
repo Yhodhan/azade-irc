@@ -1,7 +1,9 @@
 #pragma once
 
 #include "../channels/channel.h"
-#include "../connections/connection.h"
+//#include "../connections/connection.h"
+#include "../commands/commands.h"
+#include "../users/user.h"
 #include <arpa/inet.h>
 #include <cstring>
 #include <iostream>
@@ -17,8 +19,8 @@
 #include <unordered_map>
 #include <vector>
 
-#define TLS_PORT 6697
-#define PLAIN_PORT 6667
+//#define TLS_PORT 6697
+#define PORT 6667
 
 constexpr int MAX_EVENTS = 10;
 
@@ -29,31 +31,42 @@ public:
 
   void start(void);
   void event_loop();
-  void accept_client(int sock, bool use_tls);
-
-protected:
-  void init_ssl(void);
-  int poll_wait(void);
-  void setup_poll(void);
-  int  setup_socket(int port);
-  void print_error(const std::string msg, bool with_errno = false);
-  void handle_connection(struct epoll_event *event);
 
 private:
-  int epoll;
-  int tls_socket;
-  int plain_socket;
-  sockaddr_in srv_address;
-  int tls_port = TLS_PORT;
-  int plain_port = PLAIN_PORT;
 
-  struct epoll_event event, events[MAX_EVENTS];
+  void init_ssl(void);
+  void setup_poll(void);
+  int setup_socket(int port);
+  int poll_wait(struct epoll_event **events);
+  void handle_msg(struct epoll_event *event);
+  void print_error(const std::string msg, bool with_errno = false);
+  void write_reply(int fd, std::string reply);
+  ssize_t read_msg(int fd, char *buffer, size_t size);
+  void handle_command(int fd, std::string command);
+
+  void accept_client(int sock, bool use_tls);
+
+  void command_cap(int fd, Params params);
+  void command_join(int fd, Params params);
+  void command_nick(int fd, Params params);
+  void command_user(int fd, Params params);
+  void command_ping(int fd, Params params);
+  void command_mode(int fd, Params params);
+  void command_quit(int fd, Params params);
+  User* get_user(int fd);
+
+  int epollfd;
+  //int tls_socket;
+  SSL *ssl = NULL;
+  int sockfd;
+  sockaddr_in srv_address;
+  //int tls_port = TLS_PORT;
+  int port = PORT;
 
   std::vector<Channel> channels;
   SSL_CTX *ssl_ctx = nullptr;
-  // connections data structures
-  std::shared_ptr<Connections> conns;
-  std::shared_ptr<Users> users;
+
+  UserMap users;
   
   // Define exceptions
   class socketException : public std::exception
@@ -62,9 +75,18 @@ private:
   class bindException : public std::exception
   { public: virtual const char *what() const throw(); };
 
+  class AcceptException : public std::exception
+  { public: virtual const char *what() const throw(); };
+
   class pollException : public std::exception
   { public: virtual const char *what() const throw(); };
 
+  class pollAddException : public std::exception
+  { public: virtual const char *what() const throw(); };
+
   class pollWaitException : public std::exception
+  { public: virtual const char *what() const throw(); };
+
+  class readFdError: public std::exception
   { public: virtual const char *what() const throw(); };
 };
