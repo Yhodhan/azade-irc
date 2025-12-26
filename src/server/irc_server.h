@@ -65,7 +65,7 @@ private:
   //int tls_port = TLS_PORT;
   int port = PORT;
 
-  std::vector<Channel> channels;
+  std::map<std::string, Channel *> channels;
   SSL_CTX *ssl_ctx = nullptr;
 
   UserMap users;

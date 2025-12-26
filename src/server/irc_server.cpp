@@ -43,6 +43,25 @@ void IrcServer::init_ssl() {
   this->ssl = SSL_new(this->ssl_ctx);
 }
 
+// --------------------------
+//    Read/Write operations 
+// --------------------------
+ssize_t IrcServer::read_msg(int fd, char *buffer, size_t size) {
+  return recv(fd, buffer, size, 0);
+}
+
+void IrcServer::write_reply(int fd, std::string reply) {
+  reply += "\r\n";
+  write(fd, reply.c_str(), reply.size());
+}
+
+// ------------------
+//       Getters
+// ------------------
+User* IrcServer::get_user(int fd) { 
+  return this->users[fd];
+}
+
 // -----------------------
 //        Work loop 
 // -----------------------
@@ -53,8 +72,6 @@ void IrcServer::start(void) {
 
     // create the sockets of the server
     this->sockfd = setup_socket(this->port);
-    //this->tls_socket = setup_socket(this->tls_port);
-    //SSL_set_fd(ssl, this->tls_socket);
 
     // create event poll
     this->setup_poll();
@@ -109,15 +126,6 @@ void IrcServer::handle_msg(struct epoll_event *event) {
   }
 }
 
-ssize_t IrcServer::read_msg(int fd, char *buffer, size_t size) {
-  return recv(fd, buffer, size, 0);
-}
-
-void IrcServer::write_reply(int fd, std::string reply) {
-  reply += "\r\n";
-  write(fd, reply.c_str(), reply.size());
-}
-
 // ---------------------------------
 //        Create the socket
 // ---------------------------------
@@ -147,20 +155,9 @@ int IrcServer::setup_socket(int port) {
 }
 
 // ---------------------------------
-//        Close user socket
-// ---------------------------------
-void IrcServer::close_user(int fd) {
-  close(fd); 
-  epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
-  this->users.erase(fd);
-  this->cmdBuffers.erase(fd);
-}
-
-// ---------------------------------
-//     Create the event poll queue 
+//      Create event poll queue 
 // ---------------------------------
 void IrcServer::setup_poll(void) {
-  // create a epoll for handling events
   struct epoll_event ev;
   this->epollfd = epoll_create1(0);
 
@@ -186,20 +183,6 @@ int IrcServer::poll_wait(struct epoll_event **events) {
     throw IrcServer::pollWaitException();
   return num_events;
 }
-
-// -----------------------
-//       Error Printer 
-// -----------------------
-void IrcServer::print_error(const std::string msg, bool with_errno) {
-  std::cout << msg;
-  if (with_errno)
-    std::cout << strerror(errno);
-  std::cout << std::endl;
-}
-
-// -----------------------------
-//  Accept incoming connections
-// -----------------------------
 
 // ------------------------------------
 //          Accept client  
@@ -228,11 +211,14 @@ void IrcServer::accept_client(int sock, bool use_tls) {
     throw IrcServer::pollAddException();
 }
 
-// ------------------
-//       Getters
-// ------------------
-User* IrcServer::get_user(int fd) { 
-  return this->users[fd];
+// ---------------------------------
+//        Close user socket
+// ---------------------------------
+void IrcServer::close_user(int fd) {
+  close(fd); 
+  epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
+  this->users.erase(fd);
+  this->cmdBuffers.erase(fd);
 }
 
 // -----------------------
@@ -338,8 +324,33 @@ void IrcServer::command_ping(int fd, Params params) {
 //    Join command
 // ------------------
 
-void IrcServer::command_join(int fd, Params params) {
+std::string channel_name(std::string chl) {
+  auto c = chl[0];
+  std::string channel; 
+  if (c == '#' or c == '&') {
+    channel = chl.substr(1,  chl.size());
+  }
+  else 
+    channel = chl;
 
+  std::cout << "Channel name: " << channel << std::endl;
+  return channel;
+}
+
+void IrcServer::command_join(int fd, Params params) {
+  auto user = this->get_user(fd);
+
+  if (params.empty()) {
+    auto nick = user->get_nick();
+    write_reply(fd, "461 " + nick + ":Not enough parameters");
+    return;
+  }
+
+  if (this->channels.empty()) {
+    auto name = channel_name(params[0]);
+    this->channels[name] = new Channel(name);
+    this->channels[name]->add_user(user->get_id());
+  }
 }
 
 // ------------------
@@ -426,3 +437,13 @@ const char	*IrcServer::pollWaitException::what() const throw()
 
 const char	*IrcServer::readFdError::what() const throw()
 { return ("Read fd error: "); }
+
+// -----------------------
+//       Error Printer 
+// -----------------------
+void IrcServer::print_error(const std::string msg, bool with_errno) {
+  std::cout << msg;
+  if (with_errno)
+    std::cout << strerror(errno);
+  std::cout << std::endl;
+}

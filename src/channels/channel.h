@@ -4,12 +4,14 @@
 #include <string>
 #include <unordered_set>
 
-typedef uint64_t UserId;
+typedef uint32_t UserId;
 
 class Channel {
 public:
   Channel(std::string name);
   ~Channel();
+  
+  void add_user(UserId id);
 
 private:
   std::string name;
