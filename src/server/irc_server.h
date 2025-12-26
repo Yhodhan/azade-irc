@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../channels/channel.h"
-//#include "../connections/connection.h"
 #include "../commands/commands.h"
 #include "../users/user.h"
 #include <arpa/inet.h>
@@ -9,6 +8,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
@@ -16,13 +16,14 @@
 #include <sys/epoll.h>
 #include <thread>
 #include <unistd.h>
-#include <unordered_map>
 #include <vector>
 
 //#define TLS_PORT 6697
 #define PORT 6667
+#define BUF_SIZE 4096
 
-constexpr int MAX_EVENTS = 10;
+constexpr int MAX_EVENTS = 100;
+constexpr int MAX_TIMEOUT = 3000;
 
 class IrcServer {
 public:
@@ -67,7 +68,8 @@ private:
   SSL_CTX *ssl_ctx = nullptr;
 
   UserMap users;
-  
+  std::map<int, std::string> cmdBuffers;
+
   // Define exceptions
   class socketException : public std::exception
   { public: virtual const char *what() const throw(); };

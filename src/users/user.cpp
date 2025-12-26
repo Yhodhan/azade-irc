@@ -1,6 +1,8 @@
 #include "user.h"
 
-User::User() { this->id = (uint32_t)rand(); }
+User::User(int fd) : fd(fd) { 
+    this->id = (uint32_t)rand(); 
+}
 
 User::~User() {}
 
@@ -20,7 +22,7 @@ void User::change_mode(UserMode mode, bool enable) {
 // ------------------
 //  Getter functions
 // ------------------
-
+int User::get_fd() {return this->fd;}
 std::string User::get_username() { return this->username; }
 std::string User::get_hostname() { return this->hostname; }
 std::string User::get_servername() { return this->servername; }

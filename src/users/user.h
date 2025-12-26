@@ -21,9 +21,10 @@ enum UserMode {
 
 class User {
 public:
-  User();
+  User(int fd);
   ~User();
 
+  int get_fd();
   uint32_t get_id();
   std::string get_nick();
   void set_nick(const std::string nick);  
@@ -34,6 +35,7 @@ public:
   void change_mode(UserMode mode, bool enable);
 
 private:
+  int fd;
   uint32_t id;
   uint8_t  modes = 0;   
   std::string nick = "";

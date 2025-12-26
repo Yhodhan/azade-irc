@@ -1,4 +1,5 @@
-    #include "irc_server.h"
+#include "irc_server.h"
+#include <sys/epoll.h>
 
 // -----------------------
 //      Constructors
@@ -59,7 +60,6 @@ void IrcServer::start(void) {
     this->setup_poll();
     int num_events;
 
-    // cycle the fds to handle events
     while (true) {
       events_ptr = &(events[0]);
       num_events = this->poll_wait(&events_ptr);
@@ -83,26 +83,44 @@ void IrcServer::start(void) {
 }
 
 void IrcServer::handle_msg(struct epoll_event *event) {
-  char buffer[1024] = {0};
+  int fd = event->data.fd;
+  char buffer[BUF_SIZE] = {0};
+  std::string& cmd = this->cmdBuffers[fd];
 
-  std::string cmd;
-  ssize_t bytes = this->read_msg(event->data.fd, buffer, sizeof(buffer));
+  while (true) {
+    std::cout << "read message" << std::endl;
+    ssize_t bytes = this->read_msg(fd, buffer, sizeof(buffer));
 
-  if (bytes <= 0) 
-    throw IrcServer::readFdError();
+    if (bytes > 0) {
+      cmd.append(buffer, bytes);
 
-  cmd.append(buffer, bytes);
-  size_t pos;
-  while ((pos = cmd.find("\r\n")) != std::string::npos) {
-    std::string msg = cmd.substr(0, pos);
-    cmd.erase(0, pos + 2);
-    std::cout << "Command to execute: " << msg << std::endl;
-    this->handle_command(event->data.fd, msg);
+      size_t pos;
+      while ((pos = cmd.find("\r\n")) != std::string::npos) {
+        std::string msg = cmd.substr(0, pos);
+
+        cmd.erase(0, pos + 2);
+        std::cout << "Command to execute: " << msg << std::endl;
+
+        this->handle_command(fd, msg);
+      }
+    }
+    else if (bytes == 0) {
+      close(fd); 
+      epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
+      this->users.erase(fd);
+      this->cmdBuffers.erase(fd);
+    }
+    else {
+      if (errno == EAGAIN || errno == EWOULDBLOCK)
+          return; // normal epoll behavior
+      throw IrcServer::readFdError();
+    }
+
   }
-}
+ }
 
-ssize_t IrcServer::read_msg(int fd,char *buffer, size_t size) {
-  return read(fd, buffer, size - 1);
+ssize_t IrcServer::read_msg(int fd, char *buffer, size_t size) {
+  return recv(fd, buffer, size, 0);
 }
 
 void IrcServer::write_reply(int fd, std::string reply) {
@@ -117,6 +135,9 @@ int IrcServer::setup_socket(int port) {
   // socket creation
   int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (sock_fd == -1) 
+    throw IrcServer::socketException();
+
+  if (fcntl(sock_fd, F_SETFL, O_NONBLOCK) == -1) 
     throw IrcServer::socketException();
 
   // specify address
@@ -166,7 +187,7 @@ void IrcServer::setup_poll(void) {
 //       Set poll queue event 
 // ---------------------------------
 int IrcServer::poll_wait(struct epoll_event **events) {
-  int num_events = epoll_wait(this->epollfd, *events, MAX_EVENTS, -1);
+  int num_events = epoll_wait(this->epollfd, *events, MAX_EVENTS, MAX_TIMEOUT);
   if (num_events == -1) 
     throw IrcServer::pollWaitException();
   return num_events;
@@ -190,14 +211,18 @@ void IrcServer::print_error(const std::string msg, bool with_errno) {
 //          Accept client  
 // ------------------------------------
 void IrcServer::accept_client(int sock, bool use_tls) {
+  std::cout << "accept client" << std::endl;
   struct epoll_event ev;
 
   int user_fd = accept(sock, nullptr, nullptr);
   if (user_fd < 0) 
     throw IrcServer::AcceptException();
 
+  if (fcntl(user_fd, F_SETFL, O_NONBLOCK) == -1) 
+    throw IrcServer::socketException();
+
   // store user 
-  this->users[user_fd] = new User();
+  this->users[user_fd] = new User(user_fd);
 
   // -----------------------
   //       Add to epoll 
@@ -222,6 +247,8 @@ User* IrcServer::get_user(int fd) {
 // -----------------------
 
 void IrcServer::handle_command(int fd, std::string command) {
+  std::cout << "Inside handle command: " << command << std::endl;
+
   Command cmd = parse_command(command);
   switch (cmd.cmd) {
   case CAP:
@@ -255,6 +282,7 @@ void IrcServer::handle_command(int fd, std::string command) {
 // ------------------
 
 void IrcServer::command_cap(int fd, Params params) {
+  std::cout << "handle cap command" << std::endl;
   std::string msg;
   auto user = this->get_user(fd);
   auto nick = user->get_nick();
@@ -264,6 +292,7 @@ void IrcServer::command_cap(int fd, Params params) {
   else 
     msg = std::string(":azade CAP ") + nick + " LS :";
 
+  std::cout << "Reply cap command: " << std::endl;
   this->write_reply(fd, msg);
 }
 
@@ -296,9 +325,9 @@ void IrcServer::command_user(int fd, Params params) {
   auto nick = user->get_nick();
 
   write_reply(fd, "001 " + nick + " :Welcome to the Azade IRC Server");
-  //write_reply("002 " + nick + " :Your host is azade, running version 0.1");
-  ////write_reply("003 " + nick + " :This server was created today");
-  //write_reply("004 " + nick + " azade 0.1 o o");
+  write_reply(fd, "002 " + nick + " :Your host is azade, running version 0.1");
+  write_reply(fd, "003 " + nick + " :This server was created today");
+  write_reply(fd, "004 " + nick + " azade 0.1 o o");
 }
 
 // ------------------
@@ -372,6 +401,10 @@ void IrcServer::command_mode(int fd, Params params) {
 // ------------------
 void IrcServer::command_quit(int fd, Params params) {	
   //this->client_quit = true;  
+  close(fd); 
+  epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
+  this->users.erase(fd);
+  this->cmdBuffers.erase(fd);
 
   if (params.size() == 0)
     return;
