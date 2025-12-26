@@ -87,37 +87,27 @@ void IrcServer::handle_msg(struct epoll_event *event) {
   char buffer[BUF_SIZE] = {0};
   std::string& cmd = this->cmdBuffers[fd];
 
-  while (true) {
-    std::cout << "read message" << std::endl;
-    ssize_t bytes = this->read_msg(fd, buffer, sizeof(buffer));
+  ssize_t bytes = this->read_msg(fd, buffer, sizeof(buffer));
 
-    if (bytes > 0) {
-      cmd.append(buffer, bytes);
-
-      size_t pos;
-      while ((pos = cmd.find("\r\n")) != std::string::npos) {
-        std::string msg = cmd.substr(0, pos);
-
-        cmd.erase(0, pos + 2);
-        std::cout << "Command to execute: " << msg << std::endl;
-
-        this->handle_command(fd, msg);
-      }
-    }
-    else if (bytes == 0) {
-      close(fd); 
-      epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
-      this->users.erase(fd);
-      this->cmdBuffers.erase(fd);
-    }
-    else {
-      if (errno == EAGAIN || errno == EWOULDBLOCK)
-          return; // normal epoll behavior
-      throw IrcServer::readFdError();
-    }
-
+  if (bytes < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) return;
+    throw IrcServer::readFdError();
   }
- }
+
+  else if (bytes == 0) {
+    this->close_user(fd);
+    return;
+  }
+
+  cmd.append(buffer, bytes);
+  size_t pos;
+  while ((pos = cmd.find("\r\n")) != std::string::npos) {
+    std::string msg = cmd.substr(0, pos);
+    cmd.erase(0, pos + 2);
+    std::cout << "Command to execute: " << msg << std::endl;
+    this->handle_command(fd, msg);
+  }
+}
 
 ssize_t IrcServer::read_msg(int fd, char *buffer, size_t size) {
   return recv(fd, buffer, size, 0);
@@ -157,6 +147,16 @@ int IrcServer::setup_socket(int port) {
 }
 
 // ---------------------------------
+//        Close user socket
+// ---------------------------------
+void IrcServer::close_user(int fd) {
+  close(fd); 
+  epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
+  this->users.erase(fd);
+  this->cmdBuffers.erase(fd);
+}
+
+// ---------------------------------
 //     Create the event poll queue 
 // ---------------------------------
 void IrcServer::setup_poll(void) {
@@ -175,12 +175,6 @@ void IrcServer::setup_poll(void) {
 
   if (ectlfd == -1) 
     throw IrcServer::pollAddException();
-
-  //ev.data.fd = this->tls_socket; 
-  //ectlfd = epoll_ctl(this->epollfd, EPOLL_CTL_ADD, this->tls_socket, &ev); 
-//
-  //if (ectlfd == -1) 
-  //  throw IrcServer::pollAddException();
 }
 
 // ---------------------------------
@@ -211,7 +205,6 @@ void IrcServer::print_error(const std::string msg, bool with_errno) {
 //          Accept client  
 // ------------------------------------
 void IrcServer::accept_client(int sock, bool use_tls) {
-  std::cout << "accept client" << std::endl;
   struct epoll_event ev;
 
   int user_fd = accept(sock, nullptr, nullptr);
@@ -247,8 +240,6 @@ User* IrcServer::get_user(int fd) {
 // -----------------------
 
 void IrcServer::handle_command(int fd, std::string command) {
-  std::cout << "Inside handle command: " << command << std::endl;
-
   Command cmd = parse_command(command);
   switch (cmd.cmd) {
   case CAP:

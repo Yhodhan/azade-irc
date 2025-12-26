@@ -45,6 +45,7 @@ private:
   ssize_t read_msg(int fd, char *buffer, size_t size);
   void handle_command(int fd, std::string command);
 
+  void close_user(int fd);
   void accept_client(int sock, bool use_tls);
 
   void command_cap(int fd, Params params);
