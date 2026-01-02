@@ -1,5 +1,4 @@
 #include "irc_server.h"
-#include <sys/epoll.h>
 
 // -----------------------
 //      Constructors
@@ -248,7 +247,7 @@ void IrcServer::handle_command(int fd, std::string command) {
     break;
   case QUIT:
     command_quit(fd, cmd.params);
-  break;
+    break;
   default:
     this->write_reply(fd, std::string("INVALID command"));
   }
@@ -315,8 +314,10 @@ void IrcServer::command_ping(int fd, Params params) {
   if (params.empty()) {
     auto nick = this->get_user(fd)->get_nick();
     write_reply(fd, "409 " + nick + " :No origin specified");
+    return;
   }
 
+  std::cout << "response to: " << params[0] << std::endl;
   write_reply(fd, "PONG " + params[0]);
 }
 
