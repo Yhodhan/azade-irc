@@ -45,8 +45,16 @@ void IrcServer::init_ssl() {
 // --------------------------
 //    Read/Write operations 
 // --------------------------
-ssize_t IrcServer::read_msg(int fd, char *buffer, size_t size) {
-  return recv(fd, buffer, size, 0);
+
+void IrcServer::send_numeric(int fd, IrcNumeric code, const std::string &target,
+                  const std::string &msg) {
+
+  std::ostringstream oss;
+  oss << ":" << "azade" << " " << std::setw(3)
+  << std::setfill('0') << code
+  << " " << target << " :" << msg;
+
+  write_reply(fd, oss.str());
 }
 
 void IrcServer::write_reply(int fd, std::string reply) {
@@ -54,6 +62,9 @@ void IrcServer::write_reply(int fd, std::string reply) {
   write(fd, reply.c_str(), reply.size());
 }
 
+ssize_t IrcServer::read_msg(int fd, char *buffer, size_t size) {
+  return recv(fd, buffer, size, 0);
+}
 // ------------------
 //       Getters
 // ------------------
@@ -190,6 +201,7 @@ void IrcServer::accept_client(int sock, bool use_tls) {
   struct epoll_event ev;
 
   int user_fd = accept(sock, nullptr, nullptr);
+
   if (user_fd < 0) 
     throw IrcServer::AcceptException();
 
@@ -227,27 +239,13 @@ void IrcServer::close_user(int fd) {
 void IrcServer::handle_command(int fd, std::string command) {
   Command cmd = parse_command(command);
   switch (cmd.cmd) {
-  case CAP:
-    command_cap(fd, cmd.params);
-    break;
-  case JOIN:
-    command_join(fd, cmd.params);
-    break;
-  case NICK:
-    command_nick(fd, cmd.params);
-    break;
-  case USER:
-    command_user(fd, cmd.params);
-    break;
-  case PING:
-    command_ping(fd, cmd.params);
-    break;
-  case MODE:
-    command_mode(fd, cmd.params);
-    break;
-  case QUIT:
-    command_quit(fd, cmd.params);
-    break;
+  case CAP:  command_cap(fd, cmd.params);  break;
+  case JOIN: command_join(fd, cmd.params); break;
+  case NICK: command_nick(fd, cmd.params); break;
+  case USER: command_user(fd, cmd.params); break;
+  case PING: command_ping(fd, cmd.params); break;
+  case MODE: command_mode(fd, cmd.params); break;
+  case QUIT: command_quit(fd, cmd.params); break;
   default:
     this->write_reply(fd, std::string("INVALID command"));
   }
@@ -278,24 +276,39 @@ void IrcServer::command_cap(int fd, Params params) {
 
 void IrcServer::command_nick(int fd, Params params) {
    auto user = this->users[fd];
+
+   for (auto const& [key, val]: this->users) {
+     if (val->get_nick() == params[0]) {
+     }
+   }
+  
    user->set_nick(params[0]);
-   std::cout << "User nick is: " << user->get_nick() << std::endl;
 }
 
 // ------------------
 //    User command
 // ------------------
 
+bool IrcServer::user_exists(int fd, Params params) {
+
+  //if (this->users[fd]->get_fd() == fd) {
+  //  write_reply(fd, "461 USER :User already registered");
+  //  return true;
+  //}
+  //else if (this->users[fd]->get_nick() == params[1]) {
+  //  write_reply(fd, "461 USER :Nick already registered");
+  //}
+
+  return false;
+}
+
 void IrcServer::command_user(int fd, Params params) {
   if (params.size() < 4) {
-    write_reply(fd, "461 USER :Not enough parameters");
+    send_numeric(fd, ERR_NEEDMOREPARAMS, "USER", "Not enough parameters");
     return;
   }
 
-//  if (this->user_exists()) {
-//    write_reply("433 USER :User already registered");
-//    return;
-//  }
+  if (this->user_exists(fd, params)) return;
 
   auto user = this->get_user(fd);
   auto nick = user->get_nick();
@@ -303,7 +316,7 @@ void IrcServer::command_user(int fd, Params params) {
   write_reply(fd, "001 " + nick + " :Welcome to the Azade IRC Server");
   write_reply(fd, "002 " + nick + " :Your host is azade, running version 0.1");
   write_reply(fd, "003 " + nick + " :This server was created today");
-  write_reply(fd, "004 " + nick + " azade 0.1 o o");
+  write_reply(fd, "004 " + nick + " :azade 0.1 o o");
 }
 
 // ------------------
@@ -313,11 +326,10 @@ void IrcServer::command_user(int fd, Params params) {
 void IrcServer::command_ping(int fd, Params params) {
   if (params.empty()) {
     auto nick = this->get_user(fd)->get_nick();
-    write_reply(fd, "409 " + nick + " :No origin specified");
+    send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "No origin specified");
     return;
   }
 
-  std::cout << "response to: " << params[0] << std::endl;
   write_reply(fd, "PONG " + params[0]);
 }
 
@@ -328,9 +340,9 @@ void IrcServer::command_ping(int fd, Params params) {
 std::string channel_name(std::string chl) {
   auto c = chl[0];
   std::string channel; 
-  if (c == '#' or c == '&') {
-    channel = chl.substr(1,  chl.size());
-  }
+
+  if (c == '#' or c == '&') 
+    channel = chl.substr(1,  chl.size()); 
   else 
     channel = chl;
 
@@ -343,7 +355,7 @@ void IrcServer::command_join(int fd, Params params) {
 
   if (params.empty()) {
     auto nick = user->get_nick();
-    write_reply(fd, "461 " + nick + ":Not enough parameters");
+    send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "Not enough parameters");
     return;
   }
 
@@ -373,12 +385,12 @@ void IrcServer::command_mode(int fd, Params params) {
   auto nick = user->get_nick();
 
   if (params.size() < 2) {
-    write_reply(fd, "461 " + nick + ":Not enough parameters");
+    send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "Not enough parameters");
     return;
   }
 
   if (params[0] != nick) {
-    write_reply(fd, "502 " + nick + ":User do not match");
+    send_numeric(fd, ERR_USERSDONTMATCH,nick, "User do not match");
     return;
   }
 
@@ -391,7 +403,7 @@ void IrcServer::command_mode(int fd, Params params) {
   
     auto mode = char_to_flag(c);
     if (mode == UNKNOWN) {
-      write_reply(fd, "501" + nick + ":Not a valid mode");
+      send_numeric(fd, ERR_UNKNOWNMODEFLAG, nick, "Not a valid mode");
       return;
     }
 
@@ -402,6 +414,7 @@ void IrcServer::command_mode(int fd, Params params) {
 // ------------------
 //    Quit Command 
 // ------------------
+
 void IrcServer::command_quit(int fd, Params params) {	
   //this->client_quit = true;  
   close(fd); 

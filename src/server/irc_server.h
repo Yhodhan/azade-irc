@@ -3,6 +3,7 @@
 #include "../channels/channel.h"
 #include "../commands/commands.h"
 #include "../users/user.h"
+#include "../errors.h"
 #include <arpa/inet.h>
 #include <cstring>
 #include <iostream>
@@ -44,8 +45,10 @@ private:
   void write_reply(int fd, std::string reply);
   ssize_t read_msg(int fd, char *buffer, size_t size);
   void handle_command(int fd, std::string command);
+  void send_numeric(int fd, IrcNumeric code, const std::string &target, const std::string &msg);
 
   void close_user(int fd);
+  bool user_exists(int fd, Params params);
   void accept_client(int sock, bool use_tls);
 
   void command_cap(int fd, Params params);
