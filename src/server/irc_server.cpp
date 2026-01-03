@@ -1,24 +1,26 @@
 #include "irc_server.h"
 
-// -----------------------
-//      Constructors
-// -----------------------
+/* --------------------------------*/
+/*          Constructors           */
+/* --------------------------------*/
 
 IrcServer::IrcServer() {
   //this->init_ssl();
 }
 
-// -----------------------
-//       Destructor
-// -----------------------
+/* --------------------------------*/
+/*          Destructor             */
+/* --------------------------------*/
+
 IrcServer::~IrcServer() {
   //close(this->tls_socket);
   close(this->sockfd);
 }
 
-// -----------------------
-//     SSL encryption
-// -----------------------
+/* --------------------------------*/
+/*        SSL encryption           */
+/* --------------------------------*/
+
 void IrcServer::init_ssl() {
   SSL_library_init();
 
@@ -42,9 +44,9 @@ void IrcServer::init_ssl() {
   this->ssl = SSL_new(this->ssl_ctx);
 }
 
-// --------------------------
-//    Read/Write operations 
-// --------------------------
+/* --------------------------------*/
+/*      Read/Write operations      */
+/* --------------------------------*/
 
 void IrcServer::send_numeric(int fd, IrcNumeric code, const std::string &target,
                   const std::string &msg) {
@@ -66,16 +68,18 @@ ssize_t IrcServer::read_msg(int fd, char *buffer, size_t size) {
   return recv(fd, buffer, size, 0);
 }
 
-// ------------------
-//       Getters
-// ------------------
+/* --------------------------------*/
+/*            Getters              */
+/* --------------------------------*/
+
 User* IrcServer::get_user(int fd) { 
   return this->users[fd];
 }
 
-// -----------------------
-//        Work loop 
-// -----------------------
+/* --------------------------------*/
+/*          Work loop              */
+/* --------------------------------*/
+
 void IrcServer::start(void) {
   try {
     struct epoll_event events[MAX_EVENTS];
@@ -110,6 +114,10 @@ void IrcServer::start(void) {
   catch (IrcServer::readFdError &e){ print_error(e.what(), true); return; }
 }
 
+/* --------------------------------*/
+/*          Handle MSG             */
+/* --------------------------------*/
+
 void IrcServer::handle_msg(struct epoll_event *event) {
   int fd = event->data.fd;
   char buffer[BUF_SIZE] = {0};
@@ -137,9 +145,10 @@ void IrcServer::handle_msg(struct epoll_event *event) {
   }
 }
 
-// ---------------------------------
-//        Create the socket
-// ---------------------------------
+/* --------------------------------*/
+/*        Create the socket        */
+/* --------------------------------*/
+
 int IrcServer::setup_socket(int port) {
   // socket creation
   int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -165,9 +174,10 @@ int IrcServer::setup_socket(int port) {
   return sock_fd;  
 }
 
-// ---------------------------------
-//      Create event poll queue 
-// ---------------------------------
+/* --------------------------------*/
+/*     Create event poll event     */
+/* --------------------------------*/
+
 void IrcServer::setup_poll(void) {
   struct epoll_event ev;
   this->epollfd = epoll_create1(0);
@@ -185,9 +195,10 @@ void IrcServer::setup_poll(void) {
     throw IrcServer::pollAddException();
 }
 
-// ---------------------------------
-//       Set poll queue event 
-// ---------------------------------
+/* --------------------------------*/
+/*        Set poll queue event     */
+/* --------------------------------*/
+
 int IrcServer::poll_wait(struct epoll_event **events) {
   int num_events = epoll_wait(this->epollfd, *events, MAX_EVENTS, MAX_TIMEOUT);
   if (num_events == -1) 
@@ -195,9 +206,10 @@ int IrcServer::poll_wait(struct epoll_event **events) {
   return num_events;
 }
 
-// ------------------------------------
-//          Accept client  
-// ------------------------------------
+/* --------------------------------*/
+/*          Accept client          */
+/* --------------------------------*/
+
 void IrcServer::accept_client(int sock, bool use_tls) {
   struct epoll_event ev;
 
@@ -223,9 +235,10 @@ void IrcServer::accept_client(int sock, bool use_tls) {
     throw IrcServer::pollAddException();
 }
 
-// ---------------------------------
-//        Close user socket
-// ---------------------------------
+/* --------------------------------*/
+/*        Close user socket        */
+/* --------------------------------*/
+
 void IrcServer::close_user(int fd) {
   close(fd); 
   epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
@@ -233,9 +246,9 @@ void IrcServer::close_user(int fd) {
   this->cmdBuffers.erase(fd);
 }
 
-// -----------------------
-//        Commands 
-// -----------------------
+/* --------------------------------*/
+/*           Command               */
+/* --------------------------------*/
 
 void IrcServer::handle_command(int fd, std::string command) {
   Command cmd = parse_command(command);
@@ -252,12 +265,11 @@ void IrcServer::handle_command(int fd, std::string command) {
   }
 }
 
-// ------------------
-//    Cap command
-// ------------------
+/* --------------------------------*/
+/*          Cap Command            */
+/* --------------------------------*/
 
 void IrcServer::command_cap(int fd, Params params) {
-  std::cout << "handle cap command" << std::endl;
   std::string msg;
   auto user = this->get_user(fd);
   auto nick = user->get_nick();
@@ -267,13 +279,12 @@ void IrcServer::command_cap(int fd, Params params) {
   else 
     msg = std::string(":azade CAP ") + nick + " LS :";
 
-  std::cout << "Reply cap command: " << std::endl;
   this->write_reply(fd, msg);
 }
 
-// ------------------
-//    Nick command
-// ------------------
+/* --------------------------------*/
+/*          Nick Command           */
+/* --------------------------------*/
 
 void IrcServer::command_nick(int fd, Params params) {
    auto user = this->users[fd];
@@ -286,9 +297,9 @@ void IrcServer::command_nick(int fd, Params params) {
    user->set_nick(params[0]);
 }
 
-// ------------------
-//    User command
-// ------------------
+/* --------------------------------*/
+/*          User Command           */
+/* --------------------------------*/
 
 bool IrcServer::user_exists(int fd, Params params) {
 
@@ -320,9 +331,9 @@ void IrcServer::command_user(int fd, Params params) {
   send_numeric(fd, RPL_MYINFO,   nick, "azade 0.1 o o");
 }
 
-// ------------------
-//   Mode command
-// ------------------
+/* --------------------------------*/
+/*          Ping Command           */
+/* --------------------------------*/
 
 void IrcServer::command_ping(int fd, Params params) {
   if (params.empty()) {
@@ -334,9 +345,9 @@ void IrcServer::command_ping(int fd, Params params) {
   write_reply(fd, "PONG " + params[0]);
 }
 
-// ------------------
-//    Join command
-// ------------------
+/* --------------------------------*/
+/*          Join Command           */
+/* --------------------------------*/
 
 std::string channel_name(std::string chl) {
   auto c = chl[0];
@@ -367,9 +378,9 @@ void IrcServer::command_join(int fd, Params params) {
   }
 }
 
-// ------------------
-//   Mode command
-// ------------------
+/* --------------------------------*/
+/*          Mode Command           */
+/* --------------------------------*/
 
 UserMode char_to_flag(char flag) {
   switch (flag) {
@@ -412,12 +423,11 @@ void IrcServer::command_mode(int fd, Params params) {
   }
 }
 
-// ------------------
-//    Quit Command 
-// ------------------
+/* --------------------------------*/
+/*          Quit Command           */
+/* --------------------------------*/
 
 void IrcServer::command_quit(int fd, Params params) {	
-  //this->client_quit = true;  
   close(fd); 
   epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
   this->users.erase(fd);
@@ -453,9 +463,10 @@ const char	*IrcServer::pollWaitException::what() const throw()
 const char	*IrcServer::readFdError::what() const throw()
 { return ("Read fd error: "); }
 
-// -----------------------
-//       Error Printer 
-// -----------------------
+/* --------------------------------*/
+/*          Error Printer          */
+/* --------------------------------*/
+
 void IrcServer::print_error(const std::string msg, bool with_errno) {
   std::cout << msg;
   if (with_errno)
