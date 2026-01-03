@@ -41,23 +41,23 @@ private:
   int setup_socket(int port);
   int poll_wait(struct epoll_event **events);
   void handle_msg(struct epoll_event *event);
-  void print_error(const std::string msg, bool with_errno = false);
+  void print_error(const std::string &msg, bool with_errno = false);
   void write_reply(int fd, std::string reply);
   ssize_t read_msg(int fd, char *buffer, size_t size);
   void handle_command(int fd, std::string command);
   void send_numeric(int fd, IrcNumeric code, const std::string &target, const std::string &msg);
 
   void close_user(int fd);
-  bool user_exists(int fd, Params params);
+  bool user_exists(int fd, Params &params);
   void accept_client(int sock, bool use_tls);
 
-  void command_cap(int fd, Params params);
-  void command_join(int fd, Params params);
-  void command_nick(int fd, Params params);
-  void command_user(int fd, Params params);
-  void command_ping(int fd, Params params);
-  void command_mode(int fd, Params params);
-  void command_quit(int fd, Params params);
+  void command_cap(int fd,  Params &params);
+  void command_join(int fd, Params &params);
+  void command_nick(int fd, Params &params);
+  void command_user(int fd, Params &params);
+  void command_ping(int fd, Params &params);
+  void command_mode(int fd, Params &params);
+  void command_quit(int fd, Params &params);
   User* get_user(int fd);
 
   int epollfd;

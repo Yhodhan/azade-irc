@@ -77,7 +77,7 @@ User* IrcServer::get_user(int fd) {
 }
 
 /* --------------------------------*/
-/*          Work loop              */
+/*           Work loop             */
 /* --------------------------------*/
 
 void IrcServer::start(void) {
@@ -105,13 +105,13 @@ void IrcServer::start(void) {
     }
   }
   // Killer exceptions
-  catch (IrcServer::socketException &e){ print_error(e.what(), true); return; }
-  catch (IrcServer::bindException &e)  { print_error(e.what(), true); return; }
-  catch (IrcServer::AcceptException &e){ print_error(e.what(), true); return; }
-  catch (IrcServer::pollException &e)  { print_error(e.what(), true); return; }
-  catch (IrcServer::pollAddException &e){ print_error(e.what(), true); return; }
-  catch (IrcServer::pollWaitException &e){ print_error(e.what(), true); return; }
-  catch (IrcServer::readFdError &e){ print_error(e.what(), true); return; }
+  catch (IrcServer::socketException   &e) { print_error(e.what(), true); return; }
+  catch (IrcServer::bindException     &e) { print_error(e.what(), true); return; }
+  catch (IrcServer::AcceptException   &e) { print_error(e.what(), true); return; }
+  catch (IrcServer::pollException     &e) { print_error(e.what(), true); return; }
+  catch (IrcServer::pollAddException  &e) { print_error(e.what(), true); return; }
+  catch (IrcServer::pollWaitException &e) { print_error(e.what(), true); return; }
+  catch (IrcServer::readFdError       &e) { print_error(e.what(), true); return; }
 }
 
 /* --------------------------------*/
@@ -253,7 +253,7 @@ void IrcServer::close_user(int fd) {
 void IrcServer::handle_command(int fd, std::string command) {
   Command cmd = parse_command(command);
   switch (cmd.cmd) {
-  case CAP:  command_cap(fd, cmd.params);  break;
+  case CAP:  command_cap(fd,  cmd.params);  break;
   case JOIN: command_join(fd, cmd.params); break;
   case NICK: command_nick(fd, cmd.params); break;
   case USER: command_user(fd, cmd.params); break;
@@ -269,7 +269,7 @@ void IrcServer::handle_command(int fd, std::string command) {
 /*          Cap Command            */
 /* --------------------------------*/
 
-void IrcServer::command_cap(int fd, Params params) {
+void IrcServer::command_cap(int fd, Params &params) {
   std::string msg;
   auto user = this->get_user(fd);
   auto nick = user->get_nick();
@@ -286,7 +286,7 @@ void IrcServer::command_cap(int fd, Params params) {
 /*          Nick Command           */
 /* --------------------------------*/
 
-void IrcServer::command_nick(int fd, Params params) {
+void IrcServer::command_nick(int fd, Params &params) {
    auto user = this->users[fd];
 
    for (auto const& [key, val]: this->users) {
@@ -301,7 +301,7 @@ void IrcServer::command_nick(int fd, Params params) {
 /*          User Command           */
 /* --------------------------------*/
 
-bool IrcServer::user_exists(int fd, Params params) {
+bool IrcServer::user_exists(int fd, Params &params) {
 
   //if (this->users[fd]->get_fd() == fd) {
   //  write_reply(fd, "461 USER :User already registered");
@@ -314,7 +314,7 @@ bool IrcServer::user_exists(int fd, Params params) {
   return false;
 }
 
-void IrcServer::command_user(int fd, Params params) {
+void IrcServer::command_user(int fd, Params &params) {
   if (params.size() < 4) {
     send_numeric(fd, ERR_NEEDMOREPARAMS, "USER", "Not enough parameters");
     return;
@@ -335,7 +335,7 @@ void IrcServer::command_user(int fd, Params params) {
 /*          Ping Command           */
 /* --------------------------------*/
 
-void IrcServer::command_ping(int fd, Params params) {
+void IrcServer::command_ping(int fd, Params &params) {
   if (params.empty()) {
     auto nick = this->get_user(fd)->get_nick();
     send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "No origin specified");
@@ -362,7 +362,7 @@ std::string channel_name(std::string chl) {
   return channel;
 }
 
-void IrcServer::command_join(int fd, Params params) {
+void IrcServer::command_join(int fd, Params &params) {
   auto user = this->get_user(fd);
 
   if (params.empty()) {
@@ -392,7 +392,7 @@ UserMode char_to_flag(char flag) {
   }
 }
 
-void IrcServer::command_mode(int fd, Params params) { 
+void IrcServer::command_mode(int fd, Params &params) { 
   auto user = this->get_user(fd);
   auto nick = user->get_nick();
 
@@ -427,7 +427,7 @@ void IrcServer::command_mode(int fd, Params params) {
 /*          Quit Command           */
 /* --------------------------------*/
 
-void IrcServer::command_quit(int fd, Params params) {	
+void IrcServer::command_quit(int fd, Params &params) {	
   close(fd); 
   epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
   this->users.erase(fd);
@@ -467,7 +467,7 @@ const char	*IrcServer::readFdError::what() const throw()
 /*          Error Printer          */
 /* --------------------------------*/
 
-void IrcServer::print_error(const std::string msg, bool with_errno) {
+void IrcServer::print_error(const std::string &msg, bool with_errno) {
   std::cout << msg;
   if (with_errno)
     std::cout << strerror(errno);
