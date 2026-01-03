@@ -65,6 +65,7 @@ void IrcServer::write_reply(int fd, std::string reply) {
 ssize_t IrcServer::read_msg(int fd, char *buffer, size_t size) {
   return recv(fd, buffer, size, 0);
 }
+
 // ------------------
 //       Getters
 // ------------------
@@ -312,11 +313,11 @@ void IrcServer::command_user(int fd, Params params) {
 
   auto user = this->get_user(fd);
   auto nick = user->get_nick();
-
-  write_reply(fd, "001 " + nick + " :Welcome to the Azade IRC Server");
-  write_reply(fd, "002 " + nick + " :Your host is azade, running version 0.1");
-  write_reply(fd, "003 " + nick + " :This server was created today");
-  write_reply(fd, "004 " + nick + " :azade 0.1 o o");
+ 
+  send_numeric(fd, RPL_WELCOME,  nick, "Welcome to the Azade IRC Server");
+  send_numeric(fd, RPL_YOURHOST, nick, "Your host is azade, running version 0.1");
+  send_numeric(fd, RPL_CREATED,  nick, "This server was created today");
+  send_numeric(fd, RPL_MYINFO,   nick, "azade 0.1 o o");
 }
 
 // ------------------
