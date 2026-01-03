@@ -1,7 +1,7 @@
 #include "irc_server.h"
 
 /* --------------------------------*/
-/*          Constructors           */
+/*          Constructor            */
 /* --------------------------------*/
 
 IrcServer::IrcServer() {
@@ -15,6 +15,21 @@ IrcServer::IrcServer() {
 IrcServer::~IrcServer() {
   //close(this->tls_socket);
   close(this->sockfd);
+  epoll_ctl(this->epollfd, EPOLL_CTL_DEL, this->sockfd, nullptr);
+
+  // delete all allocated users
+  for (auto &[fd, user]: this->users) {
+    delete user;
+    close(fd); 
+    epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
+  }
+
+  close(this->epollfd);
+
+  // delete all allocated channels 
+  for (auto &[key, channel]: this->channels) {
+    delete channel;
+  }
 }
 
 /* --------------------------------*/
@@ -50,7 +65,6 @@ void IrcServer::init_ssl() {
 
 void IrcServer::send_numeric(int fd, IrcNumeric code, const std::string &target,
                   const std::string &msg) {
-
   std::ostringstream oss;
   oss << ":" << "azade" << " " << std::setw(3)
   << std::setfill('0') << code
@@ -105,13 +119,13 @@ void IrcServer::start(void) {
     }
   }
   // Killer exceptions
-  catch (IrcServer::socketException   &e) { print_error(e.what(), true); return; }
+  catch (IrcServer::readFdError       &e) { print_error(e.what(), true); return; }
   catch (IrcServer::bindException     &e) { print_error(e.what(), true); return; }
-  catch (IrcServer::AcceptException   &e) { print_error(e.what(), true); return; }
   catch (IrcServer::pollException     &e) { print_error(e.what(), true); return; }
+  catch (IrcServer::AcceptException   &e) { print_error(e.what(), true); return; }
+  catch (IrcServer::socketException   &e) { print_error(e.what(), true); return; }
   catch (IrcServer::pollAddException  &e) { print_error(e.what(), true); return; }
   catch (IrcServer::pollWaitException &e) { print_error(e.what(), true); return; }
-  catch (IrcServer::readFdError       &e) { print_error(e.what(), true); return; }
 }
 
 /* --------------------------------*/
@@ -253,15 +267,15 @@ void IrcServer::close_user(int fd) {
 void IrcServer::handle_command(int fd, std::string command) {
   Command cmd = parse_command(command);
   switch (cmd.cmd) {
-  case CAP:  command_cap(fd,  cmd.params);  break;
-  case JOIN: command_join(fd, cmd.params); break;
-  case NICK: command_nick(fd, cmd.params); break;
-  case USER: command_user(fd, cmd.params); break;
-  case PING: command_ping(fd, cmd.params); break;
-  case MODE: command_mode(fd, cmd.params); break;
-  case QUIT: command_quit(fd, cmd.params); break;
-  default:
-    this->write_reply(fd, std::string("INVALID command"));
+    case CAP:  command_cap(fd,  cmd.params); break;
+    case JOIN: command_join(fd, cmd.params); break;
+    case NICK: command_nick(fd, cmd.params); break;
+    case USER: command_user(fd, cmd.params); break;
+    case PING: command_ping(fd, cmd.params); break;
+    case MODE: command_mode(fd, cmd.params); break;
+    case QUIT: command_quit(fd, cmd.params); break;
+    default:
+      this->write_reply(fd, std::string("INVALID command"));
   }
 }
 

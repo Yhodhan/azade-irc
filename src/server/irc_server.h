@@ -47,6 +47,7 @@ private:
   void handle_command(int fd, std::string command);
   void send_numeric(int fd, IrcNumeric code, const std::string &target, const std::string &msg);
 
+  User* get_user(int fd);
   void close_user(int fd);
   bool user_exists(int fd, Params &params);
   void accept_client(int sock, bool use_tls);
@@ -58,7 +59,6 @@ private:
   void command_ping(int fd, Params &params);
   void command_mode(int fd, Params &params);
   void command_quit(int fd, Params &params);
-  User* get_user(int fd);
 
   int epollfd;
   //int tls_socket;
