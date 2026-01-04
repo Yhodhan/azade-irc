@@ -12,8 +12,16 @@ public:
   ~Channel();
   
   void add_user(UserId id);
+  void set_topic(std::string new_topic);
+
+  // getters
+  bool is_private();
+  int user_count();
+  std::string get_topic();
 
 private:
   std::string name;
+  std::string topic;
   std::unordered_set<UserId> users;
+  bool _private = false;
 };

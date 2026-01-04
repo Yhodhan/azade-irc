@@ -43,11 +43,6 @@ void IrcServer::init_ssl() {
   SSL_load_error_strings();
   OpenSSL_add_ssl_algorithms();
 
-  this->ssl_ctx = SSL_CTX_new(TLS_server_method());
-  if (!ssl_ctx) {
-    ERR_print_errors_fp(stderr);
-    exit(1);
-  }
 
   if (!SSL_CTX_use_certificate_file(ssl_ctx, "server.crt", SSL_FILETYPE_PEM) ||
       !SSL_CTX_use_PrivateKey_file(ssl_ctx, "server.key", SSL_FILETYPE_PEM) ||
@@ -235,7 +230,6 @@ void IrcServer::accept_client(int sock, bool use_tls) {
   if (fcntl(user_fd, F_SETFL, O_NONBLOCK) == -1) 
     throw IrcServer::socketException();
 
-  // store user 
   this->users[user_fd] = new User(user_fd);
 
   // -----------------------
@@ -273,6 +267,7 @@ void IrcServer::handle_command(int fd, std::string command) {
     case USER: command_user(fd, cmd.params); break;
     case PING: command_ping(fd, cmd.params); break;
     case MODE: command_mode(fd, cmd.params); break;
+    case LIST: command_list(fd, cmd.params); break;
     case QUIT: command_quit(fd, cmd.params); break;
     default:
       this->write_reply(fd, std::string("INVALID command"));
@@ -390,6 +385,32 @@ void IrcServer::command_join(int fd, Params &params) {
     this->channels[name] = new Channel(name);
     this->channels[name]->add_user(user->get_id());
   }
+}
+
+/* --------------------------------*/
+/*          List Command           */
+/* --------------------------------*/
+
+void IrcServer::command_list(int fd, Params &params) {
+  auto user = this->get_user(fd);
+  auto nick = user->get_nick();
+
+  if (params.size() > 0) {
+   //  list all the channel 
+  }
+
+  // Init data transfer
+  send_numeric(fd, RPL_LISTSTART, nick, "Channel :Users name");
+
+  for (auto const &[name, channel] : this->channels) {
+    if (channel->is_private()) continue;
+    std::string msg = name + " " + std::to_string(channel->user_count()) + " "
+                      + channel->get_topic(); 
+
+    send_numeric(fd, RPL_LIST, nick, msg);
+  }
+
+  send_numeric(fd, RPL_LISTEND, nick, "End of /LIST");
 }
 
 /* --------------------------------*/

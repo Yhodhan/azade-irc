@@ -3,7 +3,7 @@
 #include "../channels/channel.h"
 #include "../commands/commands.h"
 #include "../users/user.h"
-#include "../errors.h"
+#include "../numerics.h"
 #include <arpa/inet.h>
 #include <cstring>
 #include <iostream>
@@ -58,6 +58,7 @@ private:
   void command_user(int fd, Params &params);
   void command_ping(int fd, Params &params);
   void command_mode(int fd, Params &params);
+  void command_list(int fd, Params &params);
   void command_quit(int fd, Params &params);
 
   int epollfd;

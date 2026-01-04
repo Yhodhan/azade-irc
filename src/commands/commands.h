@@ -13,6 +13,7 @@ enum COMMAND {
   USER,
   PING,
   MODE,
+  LIST,
   QUIT,
   INVALID,
 };
