@@ -19,9 +19,9 @@ IrcServer::~IrcServer() {
 
   // delete all allocated users
   for (auto &[fd, user]: this->users) {
-    delete user;
     close(fd); 
     epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
+    delete user;
   }
 
   close(this->epollfd);
@@ -261,7 +261,7 @@ void IrcServer::close_user(int fd) {
 void IrcServer::handle_command(int fd, std::string command) {
   Command cmd = parse_command(command);
   switch (cmd.cmd) {
-    case CAP:  command_cap(fd,  cmd.params); break;
+    case CAP : command_cap(fd,  cmd.params); break;
     case JOIN: command_join(fd, cmd.params); break;
     case NICK: command_nick(fd, cmd.params); break;
     case USER: command_user(fd, cmd.params); break;
@@ -324,15 +324,15 @@ bool IrcServer::user_exists(int fd, Params &params) {
 }
 
 void IrcServer::command_user(int fd, Params &params) {
+  auto user = this->get_user(fd);
+  auto nick = user->get_nick();
+
   if (params.size() < 4) {
-    send_numeric(fd, ERR_NEEDMOREPARAMS, "USER", "Not enough parameters");
+    send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "Not enough parameters");
     return;
   }
 
   if (this->user_exists(fd, params)) return;
-
-  auto user = this->get_user(fd);
-  auto nick = user->get_nick();
  
   send_numeric(fd, RPL_WELCOME,  nick, "Welcome to the Azade IRC Server");
   send_numeric(fd, RPL_YOURHOST, nick, "Your host is azade, running version 0.1");
@@ -371,20 +371,30 @@ std::string channel_name(std::string chl) {
   return channel;
 }
 
+bool IrcServer::channel_exist(const std::string &name) {
+  auto it = this->channels.find(name);
+  return it == this->channels.end() ? false : true;
+}
+
 void IrcServer::command_join(int fd, Params &params) {
   auto user = this->get_user(fd);
+  auto nick = user->get_nick();
 
   if (params.empty()) {
-    auto nick = user->get_nick();
     send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "Not enough parameters");
     return;
   }
 
-  if (this->channels.empty()) {
-    auto name = channel_name(params[0]);
+  auto name = channel_name(params[0]);
+
+  if (this->channels.empty() || !this->channel_exist(params[0]))
     this->channels[name] = new Channel(name);
-    this->channels[name]->add_user(user->get_id());
-  }
+
+  auto channel = this->channels[name];
+  channel->add_user(user->get_id());
+  // send the topic
+  auto msg = "Topic: " + channel->get_topic();
+  send_numeric(fd, RPL_TOPIC, nick, msg);
 }
 
 /* --------------------------------*/
@@ -396,12 +406,13 @@ void IrcServer::command_list(int fd, Params &params) {
   auto nick = user->get_nick();
 
   if (params.size() > 0) {
-   //  list all the channel 
   }
 
-  // Init data transfer
-  send_numeric(fd, RPL_LISTSTART, nick, "Channel :Users name");
+  if (this->channels.size() == 0) return;
 
+  // Init data transfer
+  send_numeric(fd, RPL_LISTSTART, nick, "Channel :Users Name");
+  
   for (auto const &[name, channel] : this->channels) {
     if (channel->is_private()) continue;
     std::string msg = name + " " + std::to_string(channel->user_count()) + " "
@@ -409,7 +420,6 @@ void IrcServer::command_list(int fd, Params &params) {
 
     send_numeric(fd, RPL_LIST, nick, msg);
   }
-
   send_numeric(fd, RPL_LISTEND, nick, "End of /LIST");
 }
 
@@ -504,7 +514,6 @@ const char	*IrcServer::readFdError::what() const throw()
 
 void IrcServer::print_error(const std::string &msg, bool with_errno) {
   std::cout << msg;
-  if (with_errno)
-    std::cout << strerror(errno);
+  if (with_errno) std::cout << strerror(errno);
   std::cout << std::endl;
 }

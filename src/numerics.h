@@ -1,8 +1,5 @@
 #pragma once
 
-#include <iostream> 
-#include <ostream>
-
 enum IrcNumeric {
     /* ----- Registration / General ----- */
     RPL_WELCOME            = 001,
@@ -13,9 +10,12 @@ enum IrcNumeric {
     RPL_LISTSTART          = 321,
     RPL_LIST               = 322,
     RPL_LISTEND            = 323,
+    RPL_TOPIC              = 332,
+    // Errors
     ERR_NOSUCHNICK         = 401,
     ERR_NOSUCHCHANNEL      = 403,
     ERR_CANNOTSENDTOCHAN   = 404,
+    ERR_TOOMANYCHANNELS    = 405,
     ERR_NOORIGIN           = 409, 
     ERR_UNKNOWNCOMMAND     = 421,
     ERR_NOMOTD             = 422,
@@ -29,7 +29,11 @@ enum IrcNumeric {
     ERR_NEEDMOREPARAMS     = 461,
     ERR_ALREADYREGISTERED  = 462,
     ERR_PASSWDMISMATCH     = 464,
+    ERR_CHANNELISFULL      = 471,
     ERR_UNKNOWNMODE        = 472,
+    ERR_BANNEDFROMCHAN     = 474,
+    ERR_INVITEONLYCHAN     = 473,
+    ERR_BADCHANNELKEY      = 475,
     ERR_CHANOPRIVSNEEDED   = 482,
     ERR_UNKNOWNMODEFLAG    = 501,
     ERR_USERSDONTMATCH     = 502

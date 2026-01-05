@@ -45,14 +45,16 @@ private:
   void write_reply(int fd, std::string reply);
   ssize_t read_msg(int fd, char *buffer, size_t size);
   void handle_command(int fd, std::string command);
-  void send_numeric(int fd, IrcNumeric code, const std::string &target, const std::string &msg);
+  void send_numeric(int fd, IrcNumeric code, const std::string &target,
+                    const std::string &msg);
 
-  User* get_user(int fd);
+  User *get_user(int fd);
   void close_user(int fd);
+  bool channel_exist(const std::string &name);
   bool user_exists(int fd, Params &params);
   void accept_client(int sock, bool use_tls);
 
-  void command_cap(int fd,  Params &params);
+  void command_cap(int fd, Params &params);
   void command_join(int fd, Params &params);
   void command_nick(int fd, Params &params);
   void command_user(int fd, Params &params);
