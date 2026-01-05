@@ -10,6 +10,7 @@ enum IrcNumeric {
     RPL_LISTSTART          = 321,
     RPL_LIST               = 322,
     RPL_LISTEND            = 323,
+    RPL_NOTOPIC            = 331,
     RPL_TOPIC              = 332,
     // Errors
     ERR_NOSUCHNICK         = 401,
@@ -34,7 +35,8 @@ enum IrcNumeric {
     ERR_BANNEDFROMCHAN     = 474,
     ERR_INVITEONLYCHAN     = 473,
     ERR_BADCHANNELKEY      = 475,
+    ERR_NOCHANMODES        = 477,
     ERR_CHANOPRIVSNEEDED   = 482,
     ERR_UNKNOWNMODEFLAG    = 501,
-    ERR_USERSDONTMATCH     = 502
+    ERR_USERSDONTMATCH     = 502,
 };

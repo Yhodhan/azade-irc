@@ -261,14 +261,15 @@ void IrcServer::close_user(int fd) {
 void IrcServer::handle_command(int fd, std::string command) {
   Command cmd = parse_command(command);
   switch (cmd.cmd) {
-    case CAP : command_cap(fd,  cmd.params); break;
-    case JOIN: command_join(fd, cmd.params); break;
-    case NICK: command_nick(fd, cmd.params); break;
-    case USER: command_user(fd, cmd.params); break;
-    case PING: command_ping(fd, cmd.params); break;
-    case MODE: command_mode(fd, cmd.params); break;
-    case LIST: command_list(fd, cmd.params); break;
-    case QUIT: command_quit(fd, cmd.params); break;
+    case CAP :  command_cap(fd,  cmd.params); break;
+    case JOIN:  command_join(fd, cmd.params); break;
+    case NICK:  command_nick(fd, cmd.params); break;
+    case USER:  command_user(fd, cmd.params); break;
+    case PING:  command_ping(fd, cmd.params); break;
+    case MODE:  command_mode(fd, cmd.params); break;
+    case LIST:  command_list(fd, cmd.params); break;
+    case QUIT:  command_quit(fd, cmd.params); break;
+    case TOPIC: command_topic(fd, cmd.params); break;
     default:
       this->write_reply(fd, std::string("INVALID command"));
   }
@@ -483,6 +484,35 @@ void IrcServer::command_quit(int fd, Params &params) {
   // else broadcast the message
 }
 
+/* --------------------------------*/
+/*          Topic Command          */
+/* --------------------------------*/
+
+void IrcServer::command_topic(int fd, Params &params) {
+  auto user = this->get_user(fd);
+  auto nick = user->get_nick();
+
+  if (params.empty())
+    send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "Not enough parameters");
+
+  else if (params.size() == 1) {
+    auto ch_name = params[0];
+    auto topic = this->channels[ch_name]->get_topic();  
+
+    if (topic.empty()) 
+      send_numeric(fd, RPL_NOTOPIC, nick, topic);
+    else
+      send_numeric(fd, RPL_TOPIC, nick, topic);
+  }
+
+  else {
+    auto ch_name = params[0];
+    auto channel = this->channels[ch_name];
+
+    auto new_topic = params[1];
+    channel->set_topic(new_topic);
+  }
+}	
 /* --------------------------------*/
 /*          Exceptions             */
 /* --------------------------------*/

@@ -37,6 +37,8 @@ Command get_command(Params command) {
     return Command(MODE, command);
   else if (cmd == "LIST")
     return Command(LIST, command);
+  else if (cmd == "TOPIC")
+    return Command(TOPIC, command);
   else if (cmd == "QUIT")
     return Command(QUIT, command);
   else
