@@ -38,21 +38,21 @@ private:
 
   void init_ssl(void);
   void setup_poll(void);
-  int setup_socket(int port);
-  int poll_wait(struct epoll_event **events);
+  int  setup_socket(int port);
   void handle_msg(struct epoll_event *event);
-  void print_error(const std::string &msg, bool with_errno = false);
+  int  poll_wait(struct epoll_event **events);
   void write_reply(int fd, std::string reply);
-  ssize_t read_msg(int fd, char *buffer, size_t size);
   void handle_command(int fd, std::string command);
+  ssize_t read_msg(int fd, char *buffer, size_t size);
+  void print_error(const std::string &msg, bool with_errno = false);
   void send_numeric(int fd, IrcNumeric code, const std::string &target,
                     const std::string &msg);
 
   User *get_user(int fd);
   void close_user(int fd);
-  bool channel_exist(const std::string &name);
   bool user_exists(int fd, Params &params);
   void accept_client(int sock, bool use_tls);
+  bool channel_exist(const std::string &name);
 
   void command_cap(int fd, Params &params);
   void command_join(int fd, Params &params);

@@ -1,9 +1,10 @@
 #include "commands.h"
 
-// --------------------------------------------------------------
+/* -------------------------------------------------- */
+/*                 Split command                      */
+/* -------------------------------------------------- */
 
 Params split_command(const std::string cmd) {
-  // store token
   std::string s;
 
   std::stringstream ss(cmd);
@@ -17,7 +18,9 @@ Params split_command(const std::string cmd) {
   return tokens;
 }
 
-// --------------------------------------------------------------
+/* -------------------------------------------------- */
+/*                  Get command                       */
+/* -------------------------------------------------- */
 
 Command get_command(Params command) {
   std::string cmd = command[0];
@@ -44,6 +47,10 @@ Command get_command(Params command) {
   else
     return Command(INVALID, Params({}));
 }
+
+/* -------------------------------------------------- */
+/*                 Parse command                      */
+/* -------------------------------------------------- */
 
 Command parse_command(const std::string cmd) {
   auto split_cmd = split_command(cmd);

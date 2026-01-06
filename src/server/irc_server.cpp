@@ -13,11 +13,10 @@ IrcServer::IrcServer() {
 /* --------------------------------*/
 
 IrcServer::~IrcServer() {
-  // close(this->tls_socket);
   close(this->sockfd);
   epoll_ctl(this->epollfd, EPOLL_CTL_DEL, this->sockfd, nullptr);
 
-  // delete all allocated users
+  /* Delete all allocated users */
   for (auto &[fd, user] : this->users) {
     close(fd);
     epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
@@ -26,7 +25,7 @@ IrcServer::~IrcServer() {
 
   close(this->epollfd);
 
-  // delete all allocated channels
+  /* Delete all allocated channels */
   for (auto &[key, channel] : this->channels) {
     delete channel;
   }
@@ -44,7 +43,7 @@ void IrcServer::init_ssl() {
   OpenSSL_add_ssl_algorithms();
 
   if (!SSL_CTX_use_certificate_file(ssl_ctx, "server.crt", SSL_FILETYPE_PEM) ||
-      !SSL_CTX_use_PrivateKey_file(ssl_ctx, "server.key", SSL_FILETYPE_PEM) ||
+      !SSL_CTX_use_PrivateKey_file(ssl_ctx, "server.key", SSL_FILETYPE_PEM)  ||
       !SSL_CTX_check_private_key(ssl_ctx)) {
     ERR_print_errors_fp(stderr);
     exit(1);
@@ -90,10 +89,10 @@ void IrcServer::start(void) {
     struct epoll_event events[MAX_EVENTS];
     struct epoll_event *events_ptr;
 
-    // create the sockets of the server
+    /* create the sockets of the server */
     this->sockfd = setup_socket(this->port);
 
-    // create event poll
+    /* create event poll */
     this->setup_poll();
     int num_events;
 
@@ -101,7 +100,7 @@ void IrcServer::start(void) {
       events_ptr = &(events[0]);
       num_events = this->poll_wait(&events_ptr);
       for (int i = 0; i < num_events; i++) {
-        // its a connection
+        /* its a connection */ 
         if (events[i].data.fd == this->sockfd)
           accept_client(this->sockfd, false);
         else
@@ -109,7 +108,7 @@ void IrcServer::start(void) {
       }
     }
   }
-  // Killer exceptions
+ /* Killer exceptions */ 
  catch (const IrcServer::readFdError &e)      {print_error(e.what(), true); return;}
  catch (const IrcServer::bindException &e)    {print_error(e.what(), true); return;}
  catch (const IrcServer::pollException &e)    {print_error(e.what(), true); return;}
@@ -156,7 +155,7 @@ void IrcServer::handle_msg(struct epoll_event *event) {
 /* --------------------------------*/
 
 int IrcServer::setup_socket(int port) {
-  // socket creation
+  /* Socket creation */ 
   int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (sock_fd == -1)
     throw IrcServer::socketException();
@@ -164,7 +163,7 @@ int IrcServer::setup_socket(int port) {
   if (fcntl(sock_fd, F_SETFL, O_NONBLOCK) == -1)
     throw IrcServer::socketException();
 
-  // specify address
+  /* Specify address */
   sockaddr_in addr{};
   srv_address.sin_family = AF_INET;
   srv_address.sin_port = htons(port);
@@ -190,7 +189,7 @@ void IrcServer::setup_poll(void) {
   if (this->epollfd == -1)
     throw IrcServer::pollException();
 
-  // add the fd to the polling events
+  /* Add the fd to the polling events */
   int ectlfd;
   ev.events = EPOLLIN;
   ev.data.fd = this->sockfd;
@@ -201,11 +200,13 @@ void IrcServer::setup_poll(void) {
 }
 
 /* --------------------------------*/
-/*        Set poll queue event     */
+/*      Set poll queue event       */
 /* --------------------------------*/
 
 int IrcServer::poll_wait(struct epoll_event **events) {
-  int num_events = epoll_wait(this->epollfd, *events, MAX_EVENTS, MAX_TIMEOUT);
+  int num_events =
+    epoll_wait(this->epollfd, *events, MAX_EVENTS, MAX_TIMEOUT);
+
   if (num_events == -1)
     throw IrcServer::pollWaitException();
   return num_events;
@@ -228,9 +229,9 @@ void IrcServer::accept_client(int sock, bool use_tls) {
 
   this->users[user_fd] = new User(user_fd);
 
-  // -----------------------
-  //       Add to epoll
-  // -----------------------
+  /* ----------------------- */
+  /*       Add to epoll      */
+  /* ----------------------- */
   memset(&ev, 0, sizeof(struct epoll_event));
   ev.events = EPOLLIN | EPOLLET;
   ev.data.fd = user_fd;
@@ -257,17 +258,17 @@ void IrcServer::close_user(int fd) {
 void IrcServer::handle_command(int fd, std::string command) {
   Command cmd = parse_command(command);
   switch (cmd.cmd) {
-  case CAP:   command_cap(fd, cmd.params);  break;
-  case JOIN:  command_join(fd, cmd.params); break;
-  case NICK:  command_nick(fd, cmd.params); break;
-  case USER:  command_user(fd, cmd.params); break;
-  case PING:  command_ping(fd, cmd.params); break;
-  case MODE:  command_mode(fd, cmd.params); break;
-  case LIST:  command_list(fd, cmd.params); break;
-  case QUIT:  command_quit(fd, cmd.params); break;
-  case TOPIC: command_topic(fd, cmd.params); break;
-  default:
-    this->write_reply(fd, std::string("INVALID command"));
+    case CAP:   command_cap(fd,  cmd.params);  break;
+    case JOIN:  command_join(fd, cmd.params);  break;
+    case NICK:  command_nick(fd, cmd.params);  break;
+    case USER:  command_user(fd, cmd.params);  break;
+    case PING:  command_ping(fd, cmd.params);  break;
+    case MODE:  command_mode(fd, cmd.params);  break;
+    case LIST:  command_list(fd, cmd.params);  break;
+    case QUIT:  command_quit(fd, cmd.params);  break;
+    case TOPIC: command_topic(fd, cmd.params); break;
+    default:
+      this->write_reply(fd, std::string("INVALID command"));
   }
 }
 
@@ -308,7 +309,6 @@ void IrcServer::command_nick(int fd, Params &params) {
 /* --------------------------------*/
 
 bool IrcServer::user_exists(int fd, Params &params) {
-
   // if (this->users[fd]->get_fd() == fd) {
   //   write_reply(fd, "461 USER :User already registered");
   //   return true;
@@ -391,7 +391,7 @@ void IrcServer::command_join(int fd, Params &params) {
 
   auto channel = this->channels[name];
   channel->add_user(user->get_id());
-  // send the topic
+  /* Send the topic */
   auto msg = "Topic: " + channel->get_topic();
   send_numeric(fd, RPL_TOPIC, nick, msg);
 }
@@ -439,11 +439,11 @@ void IrcServer::command_list(int fd, Params &params) {
 
 UserMode char_to_flag(char flag) {
   switch (flag) {
-  case 'w': return MODE_WALLOPS;
-  case 'o': return MODE_OPERATOR;
-  case 'i': return MODE_INVISIBLE;
-  case 'r': return MODE_RESTRICTED;
-  default: return UNKNOWN;
+    case 'w': return MODE_WALLOPS;
+    case 'o': return MODE_OPERATOR;
+    case 'i': return MODE_INVISIBLE;
+    case 'r': return MODE_RESTRICTED;
+    default:  return UNKNOWN;
   }
 }
 
@@ -465,8 +465,8 @@ void IrcServer::command_mode(int fd, Params &params) {
   bool enable;
 
   for (char c : modes) {
-    if (c == '+') {enable = true; continue;}
-    if (c == '-') {enable = false; continue;}
+    if (c == '+') { enable = true; continue; }
+    if (c == '-') { enable = false; continue;}
 
     auto mode = char_to_flag(c);
     if (mode == UNKNOWN) {
@@ -498,7 +498,6 @@ void IrcServer::command_quit(int fd, Params &params) {
 /* --------------------------------*/
 
 void IrcServer::command_topic(int fd, Params &params) {
-
   auto user = this->get_user(fd);
   auto nick = user->get_nick();
 
@@ -535,6 +534,7 @@ void IrcServer::command_topic(int fd, Params &params) {
     channel->set_topic(new_topic);
   }
 }
+
 /* --------------------------------*/
 /*          Exceptions             */
 /* --------------------------------*/

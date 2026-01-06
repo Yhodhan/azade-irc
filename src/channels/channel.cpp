@@ -1,17 +1,31 @@
 #include "channel.h"
 
+/* --------------------------------*/
+/*          Constructor            */
+/* --------------------------------*/
+
 Channel::Channel(std::string name) : name(name) {}
+
+/* --------------------------------*/
+/*          Destructor             */
+/* --------------------------------*/
 
 Channel::~Channel() {}
 
-void Channel::add_user(UserId id) { users.insert(id); }
-void Channel::set_topic(std::string new_topic) { this->topic = new_topic; }
-
-// Getters
+/* --------------------------------*/
+/*            Getters              */
+/* --------------------------------*/
 
 bool Channel::is_private() { return this->_private; }
 int Channel::user_count() { return this->users.size(); }
 std::string Channel::get_topic() { return this->topic; }
+
+/* --------------------------------*/
+/*            Setters              */
+/* --------------------------------*/
+
+void Channel::add_user(UserId id) { users.insert(id); }
+void Channel::set_topic(std::string new_topic) { this->topic = new_topic; }
 
 bool Channel::has_user(UserId id) {
   auto it = this->users.find(id);
