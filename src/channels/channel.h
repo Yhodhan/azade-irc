@@ -18,6 +18,7 @@ public:
   bool is_private();
   int user_count();
   std::string get_topic();
+  bool has_user(UserId id);
 
 private:
   std::string name;

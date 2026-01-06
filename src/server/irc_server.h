@@ -50,7 +50,7 @@ private:
 
   User *get_user(int fd);
   void close_user(int fd);
-  bool channel_exist(std::string &name);
+  bool channel_exist(const std::string &name);
   bool user_exists(int fd, Params &params);
   void accept_client(int sock, bool use_tls);
 
