@@ -10,11 +10,13 @@
 class User;
 
 using UserMap = std::map<int, User *>;
+using UserIdMap = std::map<uint32_t, User*>;
 
 enum UserMode {
   MODE_INVISIBLE  = 1 << 0,
   MODE_WALLOPS    = 1 << 1,
   MODE_RESTRICTED = 1 << 2,
+
   MODE_OPERATOR   = 1 << 3,
   UNKNOWN         = 0,
 };

@@ -14,8 +14,9 @@ enum COMMAND {
   PING,
   MODE,
   LIST,
-  TOPIC,
   QUIT,
+  TOPIC,
+  PRIVMSG,
   INVALID,
 };
 

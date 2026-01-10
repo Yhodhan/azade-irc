@@ -79,6 +79,12 @@ ssize_t IrcServer::read_msg(int fd, char *buffer, size_t size) {
 /* --------------------------------*/
 
 User *IrcServer::get_user(int fd) { return this->users[fd]; }
+User *IrcServer::get_user_by_id(uint32_t id) { return this->users_id[id]; }
+
+Channel *IrcServer::get_channel(const std::string &ch_name) {
+  auto name = this->channel_name(ch_name);
+  return this->channels[ch_name];
+}
 
 /* --------------------------------*/
 /*           Work loop             */
@@ -227,7 +233,9 @@ void IrcServer::accept_client(int sock, bool use_tls) {
   if (fcntl(user_fd, F_SETFL, O_NONBLOCK) == -1)
     throw IrcServer::socketException();
 
-  this->users[user_fd] = new User(user_fd);
+  auto user = new User(user_fd);
+  this->users[user_fd] = user; 
+  this->users_id[user->get_id()] = user; // check this is properly release
 
   /* ----------------------- */
   /*       Add to epoll      */
@@ -258,15 +266,26 @@ void IrcServer::close_user(int fd) {
 void IrcServer::handle_command(int fd, std::string command) {
   Command cmd = parse_command(command);
   switch (cmd.cmd) {
-    case CAP:   command_cap(fd,  cmd.params);  break;
-    case JOIN:  command_join(fd, cmd.params);  break;
-    case NICK:  command_nick(fd, cmd.params);  break;
-    case USER:  command_user(fd, cmd.params);  break;
-    case PING:  command_ping(fd, cmd.params);  break;
-    case MODE:  command_mode(fd, cmd.params);  break;
-    case LIST:  command_list(fd, cmd.params);  break;
-    case QUIT:  command_quit(fd, cmd.params);  break;
-    case TOPIC: command_topic(fd, cmd.params); break;
+    case CAP:
+      command_cap(fd,  cmd.params);break;
+    case JOIN:
+      command_join(fd, cmd.params);break;
+    case NICK:
+      command_nick(fd, cmd.params);break;
+    case USER:
+      command_user(fd, cmd.params);break;
+    case PING:
+      command_ping(fd, cmd.params);break;
+    case MODE:
+      command_mode(fd, cmd.params);break;
+    case LIST:
+      command_list(fd, cmd.params);break;
+    case QUIT:
+      command_quit(fd, cmd.params);break;
+    case TOPIC:
+      command_topic(fd, cmd.params);break;
+    case PRIVMSG:
+      command_privmsg(fd, cmd.params);break;
     default:
       this->write_reply(fd, std::string("INVALID command"));
   }
@@ -357,7 +376,7 @@ void IrcServer::command_ping(int fd, Params &params) {
 /*          Join Command           */
 /* --------------------------------*/
 
-std::string channel_name(std::string chl) {
+std::string IrcServer::channel_name(std::string chl) {
   auto c = chl[0];
   std::string channel;
 
@@ -532,6 +551,45 @@ void IrcServer::command_topic(int fd, Params &params) {
     auto channel = this->channels[ch_name];
     auto new_topic = params[1];
     channel->set_topic(new_topic);
+  }
+}
+
+
+/* --------------------------------*/
+/*          PRIVMSG Command        */
+/* --------------------------------*/
+
+void IrcServer::command_privmsg(int fd, Params &params) {
+  auto user = this->get_user(fd);
+  auto nick = user->get_nick();
+
+  if (params.size() < 2) {
+    send_numeric(fd, ERR_NOTEXTTOSEND, nick, "No message to send");
+    return;
+  }
+
+  auto ch_name = channel_name(params[0]);
+  if(!this->channel_exist(ch_name)) {
+    send_numeric(fd, ERR_NOSUCHCHANNEL, nick, ch_name + " No such channel");
+    return;
+  }
+
+  auto channel = this->channels[ch_name];
+  // broadcast message
+  auto msg = params[1]; // fix this to send the entire message
+  broadcast(channel, msg);
+}
+
+/* --------------------------------*/
+/*          Broadcast              */
+/* --------------------------------*/
+
+void IrcServer::broadcast(Channel *channel, const std::string &msg) {
+  for (auto user_id : channel->get_users()) {
+    auto user = this->get_user_by_id(user_id);
+    auto fd = user->get_fd();
+
+    write_reply(fd, msg);
   }
 }
 

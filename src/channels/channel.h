@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -10,7 +10,7 @@ class Channel {
 public:
   Channel(std::string name);
   ~Channel();
-  
+
   void add_user(UserId id);
   void set_topic(std::string new_topic);
 
@@ -19,6 +19,7 @@ public:
   int user_count();
   std::string get_topic();
   bool has_user(UserId id);
+  std::unordered_set<UserId> get_users();
 
 private:
   std::string name;

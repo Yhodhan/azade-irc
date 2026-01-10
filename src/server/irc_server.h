@@ -50,9 +50,13 @@ private:
 
   User *get_user(int fd);
   void close_user(int fd);
+  User *get_user_by_id(uint32_t fd); 
   bool user_exists(int fd, Params &params);
+  std::string channel_name(std::string chl);
   void accept_client(int sock, bool use_tls);
   bool channel_exist(const std::string &name);
+  Channel *get_channel(const std::string &ch_name);
+  void broadcast(Channel *channel, const std::string &msg);
 
   void command_cap(int fd, Params &params);
   void command_join(int fd, Params &params);
@@ -63,6 +67,7 @@ private:
   void command_list(int fd, Params &params);
   void command_quit(int fd, Params &params);
   void command_topic(int fd, Params &params);
+  void command_privmsg(int fd, Params &params);
 
   int epollfd;
   //int tls_socket;
@@ -76,6 +81,7 @@ private:
   SSL_CTX *ssl_ctx = nullptr;
 
   UserMap users;
+  UserIdMap users_id;
   std::map<int, std::string> cmdBuffers;
 
   // Define exceptions
