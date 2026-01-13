@@ -5,7 +5,7 @@
 /* --------------------------------*/
 
 IrcServer::IrcServer() {
-  // this->init_ssl();
+  // this- >init_ssl();
 }
 
 /* --------------------------------*/
@@ -554,10 +554,16 @@ void IrcServer::command_topic(int fd, Params &params) {
   }
 }
 
-
 /* --------------------------------*/
 /*          PRIVMSG Command        */
 /* --------------------------------*/
+
+std::string build_msg(std::string nick, Channel *channel,
+                      const std::string &msg) {
+  auto irc_msg = ":" + nick + " PRIVMSG " + channel->get_name() + " :" + msg; 
+
+  return irc_msg;
+}
 
 void IrcServer::command_privmsg(int fd, Params &params) {
   auto user = this->get_user(fd);
@@ -569,14 +575,18 @@ void IrcServer::command_privmsg(int fd, Params &params) {
   }
 
   auto ch_name = channel_name(params[0]);
-  if(!this->channel_exist(ch_name)) {
+  if (!this->channel_exist(ch_name)) {
     send_numeric(fd, ERR_NOSUCHCHANNEL, nick, ch_name + " No such channel");
     return;
   }
 
-  auto channel = this->channels[ch_name];
-  // broadcast message
-  auto msg = params[1]; // fix this to send the entire message
+  /* unified split messages */
+  std::string msg = "";
+  for (int i = 1; i < params.size(); i++) {
+    msg += params[i];
+  }
+  
+  auto channel = this->channels[ch_name];  
   broadcast(channel, msg);
 }
 
@@ -588,6 +598,11 @@ void IrcServer::broadcast(Channel *channel, const std::string &msg) {
   for (auto user_id : channel->get_users()) {
     auto user = this->get_user_by_id(user_id);
     auto fd = user->get_fd();
+
+    auto irc_msg = build_msg(user->get_nick(), channel, msg);
+
+    std::cout << "broadcast to user" << user->get_nick()
+    << "msg: " << msg << std::endl;
 
     write_reply(fd, msg);
   }

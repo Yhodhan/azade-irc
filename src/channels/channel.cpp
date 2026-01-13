@@ -19,6 +19,7 @@ Channel::~Channel() {}
 bool Channel::is_private() { return this->_private; }
 int Channel::user_count() { return this->users.size(); }
 std::string Channel::get_topic() { return this->topic; }
+std::string Channel::get_name() { return "#" + this->name; }
 std::unordered_set<UserId> Channel::get_users() { return this->users; }
 
 /* --------------------------------*/

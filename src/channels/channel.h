@@ -19,6 +19,7 @@ public:
   int user_count();
   std::string get_topic();
   bool has_user(UserId id);
+  std::string get_name();
   std::unordered_set<UserId> get_users();
 
 private:
