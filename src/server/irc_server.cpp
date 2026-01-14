@@ -23,10 +23,9 @@ IrcServer::~IrcServer() {
   }
 
   /* Delete all allocated channels */
-  for (auto &[key, channel] : this->channels) {
+  for (auto &[key, channel] : this->channels)
     delete channel;
-  }
-
+ 
   close(this->sockfd);
   close(this->epollfd);
 }
@@ -112,10 +111,10 @@ void IrcServer::start(void) {
     this->setup_poll();
   }
   /* Killer exceptions */
- catch (const IrcServer::bindException &e)    { print_error(e.what(),  true); return; }
- catch (const IrcServer::pollException &e)    { print_error(e.what(),  true); return; }
- catch (const IrcServer::socketException &e)  { print_error(e.what(),  true); return; }
- catch (const IrcServer::pollAddException &e) { print_error(e.what(),  true); return; }
+ catch (const IrcServer::bindException &e)    { print_error(e.what(), true); return; }
+ catch (const IrcServer::pollException &e)    { print_error(e.what(), true); return; }
+ catch (const IrcServer::socketException &e)  { print_error(e.what(), true); return; }
+ catch (const IrcServer::pollAddException &e) { print_error(e.what(), true); return; }
 }
 
 /* --------------------------------*/
