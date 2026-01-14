@@ -3,8 +3,8 @@
 /* --------------------------------*/
 /*          Constructor            */
 /* --------------------------------*/
-
-IrcServer::IrcServer() {
+IrcServer *IrcServer::instance = nullptr;
+IrcServer::IrcServer() : running(true) {
   // this- >init_ssl();
 }
 
@@ -13,7 +13,6 @@ IrcServer::IrcServer() {
 /* --------------------------------*/
 
 IrcServer::~IrcServer() {
-  close(this->sockfd);
   epoll_ctl(this->epollfd, EPOLL_CTL_DEL, this->sockfd, nullptr);
 
   /* Delete all allocated users */
@@ -23,12 +22,13 @@ IrcServer::~IrcServer() {
     delete user;
   }
 
-  close(this->epollfd);
-
   /* Delete all allocated channels */
   for (auto &[key, channel] : this->channels) {
     delete channel;
   }
+
+  close(this->sockfd);
+  close(this->epollfd);
 }
 
 /* --------------------------------*/
@@ -43,13 +43,27 @@ void IrcServer::init_ssl() {
   OpenSSL_add_ssl_algorithms();
 
   if (!SSL_CTX_use_certificate_file(ssl_ctx, "server.crt", SSL_FILETYPE_PEM) ||
-      !SSL_CTX_use_PrivateKey_file(ssl_ctx, "server.key", SSL_FILETYPE_PEM)  ||
+      !SSL_CTX_use_PrivateKey_file(ssl_ctx, "server.key", SSL_FILETYPE_PEM) ||
       !SSL_CTX_check_private_key(ssl_ctx)) {
     ERR_print_errors_fp(stderr);
     exit(1);
   }
 
   this->ssl = SSL_new(this->ssl_ctx);
+}
+
+/* --------------------------------*/
+/*        Signal management        */
+/* --------------------------------*/
+
+void IrcServer::on_sigint(int) {
+  if (instance)
+    instance->running = false;
+}
+
+void IrcServer::install_signal_handler(IrcServer *server) {
+  IrcServer::instance = server;
+  signal(SIGINT, server->on_sigint);
 }
 
 /* --------------------------------*/
@@ -87,26 +101,49 @@ Channel *IrcServer::get_channel(const std::string &ch_name) {
 }
 
 /* --------------------------------*/
-/*           Work loop             */
+/*           Start server          */
 /* --------------------------------*/
 
 void IrcServer::start(void) {
   try {
+    /* create the sockets of the server */
+    this->sockfd = setup_socket(this->port);
+    /* create event poll */
+    this->setup_poll();
+  }
+  /* Killer exceptions */
+ catch (const IrcServer::bindException &e) { print_error(e.what(), true); return;}
+ catch (const IrcServer::pollException &e) {print_error(e.what(), true); return;}
+ catch (const IrcServer::socketException &e) {print_error(e.what(), true); return;}
+ catch (const IrcServer::pollAddException &e) {print_error(e.what(), true); return;}
+}
+
+/* --------------------------------*/
+/*         Shutdown server         */
+/* --------------------------------*/
+
+void IrcServer::shutdown(void) {
+  // Broadcast termination signal
+  for (auto &[fd, user] : this->users) {
+    write_reply(fd, "ERROR :Server shutting down");
+  }
+}
+
+/* --------------------------------*/
+/*           Work loop             */
+/* --------------------------------*/
+void IrcServer::event_loop(void) {
+  try {
     struct epoll_event events[MAX_EVENTS];
     struct epoll_event *events_ptr;
 
-    /* create the sockets of the server */
-    this->sockfd = setup_socket(this->port);
-
-    /* create event poll */
-    this->setup_poll();
     int num_events;
 
-    while (true) {
+    while (running) {
       events_ptr = &(events[0]);
       num_events = this->poll_wait(&events_ptr);
       for (int i = 0; i < num_events; i++) {
-        /* its a connection */ 
+        /* its a connection */
         if (events[i].data.fd == this->sockfd)
           accept_client(this->sockfd, false);
         else
@@ -114,14 +151,10 @@ void IrcServer::start(void) {
       }
     }
   }
- /* Killer exceptions */ 
- catch (const IrcServer::readFdError &e)      {print_error(e.what(), true); return;}
- catch (const IrcServer::bindException &e)    {print_error(e.what(), true); return;}
- catch (const IrcServer::pollException &e)    {print_error(e.what(), true); return;}
- catch (const IrcServer::AcceptException &e)  {print_error(e.what(), true); return;}
- catch (const IrcServer::socketException &e)  {print_error(e.what(), true); return;}
- catch (const IrcServer::pollAddException &e) {print_error(e.what(), true); return;}
- catch (const IrcServer::pollWaitException &e){print_error(e.what(), true); return;}
+  /* Killer exceptions */
+  catch (const IrcServer::readFdError &e) {print_error(e.what(), true); return;}
+  catch (const IrcServer::AcceptException &e) {print_error(e.what(), true); return;}
+  catch (const IrcServer::pollWaitException &e) {print_error(e.what(), true); return;}
 }
 
 /* --------------------------------*/
@@ -161,7 +194,7 @@ void IrcServer::handle_msg(struct epoll_event *event) {
 /* --------------------------------*/
 
 int IrcServer::setup_socket(int port) {
-  /* Socket creation */ 
+  /* Socket creation */
   int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (sock_fd == -1)
     throw IrcServer::socketException();
@@ -210,8 +243,7 @@ void IrcServer::setup_poll(void) {
 /* --------------------------------*/
 
 int IrcServer::poll_wait(struct epoll_event **events) {
-  int num_events =
-    epoll_wait(this->epollfd, *events, MAX_EVENTS, MAX_TIMEOUT);
+  int num_events = epoll_wait(this->epollfd, *events, MAX_EVENTS, MAX_TIMEOUT);
 
   if (num_events == -1)
     throw IrcServer::pollWaitException();
@@ -234,7 +266,7 @@ void IrcServer::accept_client(int sock, bool use_tls) {
     throw IrcServer::socketException();
 
   auto user = new User(user_fd);
-  this->users[user_fd] = user; 
+  this->users[user_fd] = user;
   this->users_id[user->get_id()] = user; // check this is properly release
 
   /* ----------------------- */
@@ -266,28 +298,28 @@ void IrcServer::close_user(int fd) {
 void IrcServer::handle_command(int fd, std::string command) {
   Command cmd = parse_command(command);
   switch (cmd.cmd) {
-    case CAP:
-      command_cap(fd,  cmd.params);break;
-    case JOIN:
-      command_join(fd, cmd.params);break;
-    case NICK:
-      command_nick(fd, cmd.params);break;
-    case USER:
-      command_user(fd, cmd.params);break;
-    case PING:
-      command_ping(fd, cmd.params);break;
-    case MODE:
-      command_mode(fd, cmd.params);break;
-    case LIST:
-      command_list(fd, cmd.params);break;
-    case QUIT:
-      command_quit(fd, cmd.params);break;
-    case TOPIC:
-      command_topic(fd, cmd.params);break;
-    case PRIVMSG:
-      command_privmsg(fd, cmd.params);break;
-    default:
-      this->write_reply(fd, std::string("INVALID command"));
+  case CAP:
+    command_cap(fd, cmd.params); break;
+  case JOIN:
+    command_join(fd, cmd.params); break;
+  case NICK:
+    command_nick(fd, cmd.params); break;
+  case USER:
+    command_user(fd, cmd.params); break;
+  case PING:
+    command_ping(fd, cmd.params); break;
+  case MODE:
+    command_mode(fd, cmd.params); break;
+  case LIST:
+    command_list(fd, cmd.params); break;
+  case QUIT:
+    command_quit(fd, cmd.params); break;
+  case TOPIC:
+    command_topic(fd, cmd.params); break;
+  case PRIVMSG:
+    command_privmsg(fd, cmd.params); break;
+  default:
+    this->write_reply(fd, std::string("INVALID command"));
   }
 }
 
@@ -458,11 +490,11 @@ void IrcServer::command_list(int fd, Params &params) {
 
 UserMode char_to_flag(char flag) {
   switch (flag) {
-    case 'w': return MODE_WALLOPS;
-    case 'o': return MODE_OPERATOR;
-    case 'i': return MODE_INVISIBLE;
-    case 'r': return MODE_RESTRICTED;
-    default:  return UNKNOWN;
+  case 'w': return MODE_WALLOPS;
+  case 'o': return MODE_OPERATOR;
+  case 'i': return MODE_INVISIBLE;
+  case 'r': return MODE_RESTRICTED;
+  default: return UNKNOWN;
   }
 }
 
@@ -484,8 +516,14 @@ void IrcServer::command_mode(int fd, Params &params) {
   bool enable;
 
   for (char c : modes) {
-    if (c == '+') { enable = true; continue; }
-    if (c == '-') { enable = false; continue;}
+    if (c == '+') {
+      enable = true;
+      continue;
+    }
+    if (c == '-') {
+      enable = false;
+      continue;
+    }
 
     auto mode = char_to_flag(c);
     if (mode == UNKNOWN) {
@@ -560,7 +598,7 @@ void IrcServer::command_topic(int fd, Params &params) {
 
 std::string build_msg(std::string nick, Channel *channel,
                       const std::string &msg) {
-  auto irc_msg = ":" + nick + " PRIVMSG " + channel->get_name() + " :" + msg; 
+  auto irc_msg = ":" + nick + " PRIVMSG " + channel->get_name() + " :" + msg;
 
   return irc_msg;
 }
@@ -585,8 +623,8 @@ void IrcServer::command_privmsg(int fd, Params &params) {
   for (int i = 1; i < params.size(); i++) {
     msg += params[i];
   }
-  
-  auto channel = this->channels[ch_name];  
+
+  auto channel = this->channels[ch_name];
   broadcast(channel, msg);
 }
 
@@ -601,8 +639,8 @@ void IrcServer::broadcast(Channel *channel, const std::string &msg) {
 
     auto irc_msg = build_msg(user->get_nick(), channel, msg);
 
-    std::cout << "broadcast to user" << user->get_nick()
-    << "msg: " << msg << std::endl;
+    std::cout << "broadcast to user: " << user->get_nick() << " msg " << irc_msg
+              << std::endl;
 
     write_reply(fd, msg);
   }
