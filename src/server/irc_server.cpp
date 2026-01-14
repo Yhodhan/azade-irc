@@ -123,10 +123,9 @@ void IrcServer::start(void) {
 
 void IrcServer::shutdown(void) {
   // Broadcast termination signal
-  for (auto &[fd, user] : this->users) {
+  for (auto &[fd, user] : this->users) 
     write_reply(fd, "ERROR :Server shutting down");
-  }
-}
+ }
 
 /* --------------------------------*/
 /*           Work loop             */
@@ -441,10 +440,15 @@ void IrcServer::command_join(int fd, Params &params) {
  
   auto channel = this->channels[name];
   channel->add_user(user->get_id());
+  user->add_channel(name);
 
   /* Send the topic */
   auto msg = "Topic: " + channel->get_topic();
   send_numeric(fd, RPL_TOPIC, nick, msg);
+
+  /* Broadcast new join */
+  msg = "User " + nick + " Has join the channel!"; 
+  broadcast(0, channel, msg);
 }
 
 /* --------------------------------*/
@@ -535,14 +539,30 @@ void IrcServer::command_mode(int fd, Params &params) {
 /* --------------------------------*/
 
 void IrcServer::command_quit(int fd, Params &params) {
+  auto user = this->get_user(fd);
+  auto channels = user->get_channels();
+
+  std::string msg;
+  if (params.empty())
+    msg = "";
+  else {
+    for (int i = 1; i < params.size(); i++)
+      msg = msg + " " + params[i];
+  }
+
+  /* Broadcast Quit message */
+  for (auto ch_name: channels){
+    auto channel = this->channels[ch_name];
+    broadcast(fd, channel, msg);
+    channel->remove_user(user->get_id());
+  
+}
+
   close(fd);
   epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
   this->users.erase(fd);
   this->cmdBuffers.erase(fd);
-
-  if (params.size() == 0)
-    return;
-  // else broadcast the message
+  delete user;
 }
 
 /* --------------------------------*/

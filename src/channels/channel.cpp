@@ -28,6 +28,7 @@ std::unordered_set<UserId> Channel::get_users() { return this->users; }
 
 void Channel::add_user(UserId id) { users.insert(id); }
 void Channel::set_topic(std::string new_topic) { this->topic = new_topic; }
+void Channel::remove_user(UserId id) { this->users.erase(id); }
 
 bool Channel::has_user(UserId id) {
   auto it = this->users.find(id);

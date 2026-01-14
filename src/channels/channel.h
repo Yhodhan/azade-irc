@@ -15,11 +15,12 @@ public:
   void set_topic(std::string new_topic);
 
   // getters
-  bool is_private();
   int user_count();
+  bool is_private();
+  std::string get_name();
   std::string get_topic();
   bool has_user(UserId id);
-  std::string get_name();
+  void remove_user(UserId id);
   std::unordered_set<UserId> get_users();
 
 private:
