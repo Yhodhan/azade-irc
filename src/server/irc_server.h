@@ -65,7 +65,7 @@ private:
   void accept_client(int sock, bool use_tls);
   bool channel_exist(const std::string &name);
   Channel *get_channel(const std::string &ch_name);
-  void broadcast(Channel *channel, const std::string &msg);
+  void broadcast(int from_fd, Channel *channel, const std::string &msg);
 
   /* --------------------------------*/
   /*           Commands              */

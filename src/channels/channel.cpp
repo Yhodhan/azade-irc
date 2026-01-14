@@ -33,4 +33,3 @@ bool Channel::has_user(UserId id) {
   auto it = this->users.find(id);
   return it == this->users.end() ? false : true;
 }
-

@@ -5,11 +5,12 @@ int main(void) {
      
   std::cout << "=== INIT SERVER" << std::endl;
   server->install_signal_handler(server);
+
   server->start();
   server->event_loop();
 
-  std::cout << "=== FINISH SERVER" << std::endl;
   server->shutdown();
+  std::cout << "=== FINISH SERVER" << std::endl;
 
   delete server;
   return 0;
