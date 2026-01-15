@@ -1,4 +1,5 @@
 #include "commands.h"
+#include "../server/irc_server.h"
 
 /* -------------------------------------------------- */
 /*                 Split command                      */
@@ -104,7 +105,7 @@ void command_nick(int fd, Params &params, IrcServer *server) {
 /*          User Command           */
 /* --------------------------------*/
 
-bool user_exists(int fd, Params &params) {
+bool user_exists(int fd, Params &params, IrcServer *server) {
   // if (server->users[fd]->get_fd() == fd) {
   //   write_reply(fd, "461 USER :User already registered");
   //   return true;
@@ -125,7 +126,7 @@ void command_user(int fd, Params &params, IrcServer *server) {
     return;
   }
 
-  if (server->user_exists(fd, params))
+  if (user_exists(fd, params, server))
     return;
 
   server->send_numeric(fd, RPL_WELCOME, nick,
@@ -184,7 +185,7 @@ void command_join(int fd, Params &params, IrcServer *server) {
 
   auto name = channel_name(params[0]);
 
-  if (server->get_channels().empty() || !server->channel_exist(name))
+  if (server->get_channels().empty() || !channel_exist(name, server))
     server->get_channels()[name] = new Channel(name);
 
   auto channel = server->get_channels()[name];
@@ -225,7 +226,7 @@ void command_list(int fd, Params &params, IrcServer *server) {
     for (auto ch_name : params) {
       auto name = channel_name(ch_name);
 
-      if (!server->channel_exist(name))
+      if (!channel_exist(name, server))
         continue;
 
       auto channel = server->get_channels()[name];
@@ -323,7 +324,7 @@ void command_topic(int fd, Params &params, IrcServer *server) {
   else if (params.size() == 1) {
     auto ch_name = channel_name(params[0]);
 
-    if (!server->channel_exist(ch_name)) {
+    if (!channel_exist(ch_name, server)) {
       server->send_numeric(fd, ERR_NOSUCHCHANNEL, nick,
                            ch_name + " No such channel");
       return;
@@ -373,7 +374,7 @@ void command_privmsg(int fd, Params &params, IrcServer *server) {
   }
 
   auto ch_name = channel_name(params[0]);
-  if (!server->channel_exist(ch_name)) {
+  if (!channel_exist(ch_name, server)) {
     server->send_numeric(fd, ERR_NOSUCHCHANNEL, nick,
                          ch_name + " No such channel");
     return;

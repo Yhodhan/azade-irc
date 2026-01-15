@@ -30,6 +30,7 @@ struct Command {
       : cmd(command), params(parameters) {}
 };
 
+std::string channel_name(std::string chl);
 Command parse_command(const std::string cmd);
 
 void command_cap(int fd, Params &params, IrcServer *server);
@@ -42,5 +43,3 @@ void command_mode(int fd, Params &params, IrcServer *server);
 void command_quit(int fd, Params &params, IrcServer *server);
 void command_topic(int fd, Params &params, IrcServer *server);
 void command_privmsg(int fd, Params &params, IrcServer *server);
-
-#include "../server/irc_server.h"

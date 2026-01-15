@@ -95,7 +95,7 @@ UserMap IrcServer::get_users() { return this->users; }
 User *IrcServer::get_user(int fd) { return this->users[fd]; }
 User *IrcServer::get_user_by_id(uint32_t id) { return this->users_id[id]; }
 Channel *IrcServer::get_channel(const std::string &ch_name) {
-  auto name = this->channel_name(ch_name);
+  auto name = channel_name(ch_name);
   return this->channels[ch_name];
 }
 std::map<std::string, Channel *> IrcServer::get_channels() {

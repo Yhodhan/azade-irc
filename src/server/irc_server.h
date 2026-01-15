@@ -3,6 +3,7 @@
 #include "../channels/channel.h"
 #include "../numerics.h"
 #include "../users/user.h"
+#include "../commands/commands.h"
 #include <arpa/inet.h>
 #include <atomic>
 #include <cstring>
@@ -19,7 +20,6 @@
 #include <thread>
 #include <unistd.h>
 #include <vector>
-#include "../commands/commands.h"
 
 // #define TLS_PORT 6697
 #define PORT 6667
@@ -47,7 +47,6 @@ public:
   void close_user(int fd);
   User *get_user_by_id(uint32_t fd);
   bool user_exists(int fd, Params &params);
-  std::string channel_name(std::string chl);
   bool channel_exist(const std::string &name);
   Channel *get_channel(const std::string &ch_name);
   std::map<std::string, Channel *> get_channels();
