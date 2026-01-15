@@ -5,7 +5,7 @@
 /* -------------------------------------------------- */
 
 Params split_command(const std::string cmd) {
- 
+
   std::string s;
 
   std::stringstream ss(cmd);
@@ -35,8 +35,6 @@ Command get_command(Params command) {
     return Command(NICK, command);
   else if (cmd == "USER")
     return Command(USER, command);
-  else if (cmd == "PING")
-    return Command(PING, command);
   else if (cmd == "MODE")
     return Command(MODE, command);
   else if (cmd == "LIST")
@@ -47,8 +45,8 @@ Command get_command(Params command) {
     return Command(TOPIC, command);
   else if (cmd == "PRIVMSG")
     return Command(PRIVMSG, command);
-  else
-    return Command(INVALID, Params({}));
+  else 
+    return Command(PING, command);
 }
 
 /* -------------------------------------------------- */

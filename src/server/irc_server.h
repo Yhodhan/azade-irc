@@ -19,6 +19,7 @@
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
+#include <unordered_map>
 #include <vector>
 
 // #define TLS_PORT 6697
@@ -43,10 +44,12 @@ public:
   /*         Signal Variables        */
   /* --------------------------------*/
   static IrcServer *instance;
+  using Handler = void (IrcServer::*)(int, Params &);
 
 private:
   void init_ssl(void);
   void setup_poll(void);
+  void init_command_map();
   int setup_socket(int port);
   void handle_msg(struct epoll_event *event);
   int poll_wait(struct epoll_event **events);
@@ -65,6 +68,7 @@ private:
   void accept_client(int sock, bool use_tls);
   bool channel_exist(const std::string &name);
   Channel *get_channel(const std::string &ch_name);
+  void dispatch_command(int fd, std::string &command);
   void broadcast(int from_fd, Channel *channel, const std::string &msg);
 
   /* --------------------------------*/
@@ -99,6 +103,7 @@ private:
   UserIdMap users_id;
   std::atomic<bool> running;
   std::map<int, std::string> cmdBuffers;
+  std::unordered_map<CmdType, Handler> handlers;
 
   /* --------------------------------*/
   /*          Exceptions             */

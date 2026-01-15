@@ -6,7 +6,7 @@
 
 #define Params std::vector<std::string>
 
-enum COMMAND {
+enum CmdType {
   CAP,
   JOIN,
   NICK,
@@ -17,14 +17,13 @@ enum COMMAND {
   QUIT,
   TOPIC,
   PRIVMSG,
-  INVALID,
 };
 
 struct Command {
-  COMMAND cmd;
+  CmdType cmd;
   Params params;
 
-  Command(COMMAND command, Params parameters)
+  Command(CmdType command, Params parameters)
       : cmd(command), params(parameters) {}
 };
 

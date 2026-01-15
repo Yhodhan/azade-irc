@@ -25,7 +25,7 @@ IrcServer::~IrcServer() {
   /* Delete all allocated channels */
   for (auto &[key, channel] : this->channels)
     delete channel;
- 
+
   close(this->sockfd);
   close(this->epollfd);
 }
@@ -105,16 +105,18 @@ Channel *IrcServer::get_channel(const std::string &ch_name) {
 
 void IrcServer::start(void) {
   try {
+    /* init the callbacks map */
+    this->init_command_map();
     /* create the sockets of the server */
     this->sockfd = setup_socket(this->port);
     /* create event poll */
     this->setup_poll();
   }
   /* Killer exceptions */
- catch (const IrcServer::bindException &e)    { print_error(e.what(), true); return; }
- catch (const IrcServer::pollException &e)    { print_error(e.what(), true); return; }
- catch (const IrcServer::socketException &e)  { print_error(e.what(), true); return; }
- catch (const IrcServer::pollAddException &e) { print_error(e.what(), true); return; }
+  catch (const IrcServer::bindException &e) {print_error(e.what(), true); return;}
+  catch (const IrcServer::pollException &e) {print_error(e.what(), true); return;}
+  catch (const IrcServer::socketException &e) {print_error(e.what(), true); return; }
+  catch (const IrcServer::pollAddException &e) {print_error(e.what(), true); return;}
 }
 
 /* --------------------------------*/
@@ -123,9 +125,9 @@ void IrcServer::start(void) {
 
 void IrcServer::shutdown(void) {
   // Broadcast termination signal
-  for (auto &[fd, user] : this->users) 
+  for (auto &[fd, user] : this->users)
     write_reply(fd, "ERROR :Server shutting down");
- }
+}
 
 /* --------------------------------*/
 /*           Work loop             */
@@ -167,7 +169,8 @@ void IrcServer::handle_msg(struct epoll_event *event) {
   ssize_t bytes = this->read_msg(fd, buffer, sizeof(buffer));
 
   if (bytes < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) return;
+    if (errno == EAGAIN || errno == EWOULDBLOCK)
+      return;
     throw IrcServer::readFdError();
   }
 
@@ -182,7 +185,7 @@ void IrcServer::handle_msg(struct epoll_event *event) {
     std::string msg = cmd.substr(0, pos);
     cmd.erase(0, pos + 2);
 
-    this->handle_command(fd, msg);
+    this->dispatch_command(fd, msg);
   }
 }
 
@@ -249,7 +252,8 @@ int IrcServer::poll_wait(struct epoll_event **events) {
 
 /* --------------------------------*/
 /*          Accept client          */
-/* --------------------------------*/
+/* -------------
+-------------------*/
 
 void IrcServer::accept_client(int sock, bool use_tls) {
   struct epoll_event ev;
@@ -264,7 +268,7 @@ void IrcServer::accept_client(int sock, bool use_tls) {
 
   auto user = new User(user_fd);
   this->users[user_fd] = user;
-  this->users_id[user->get_id()] = user; // check this is properly release
+  this->users_id[user->get_id()] = user; 
 
   /* ----------------------- */
   /*       Add to epoll      */
@@ -282,42 +286,39 @@ void IrcServer::accept_client(int sock, bool use_tls) {
 /* --------------------------------*/
 
 void IrcServer::close_user(int fd) {
+  auto user = this->get_user(fd);
   close(fd);
   epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
   this->users.erase(fd);
   this->cmdBuffers.erase(fd);
+  delete user;
 }
 
 /* --------------------------------*/
 /*           Command               */
 /* --------------------------------*/
 
-void IrcServer::handle_command(int fd, std::string command) {
+void IrcServer::dispatch_command(int fd, std::string &command) {
   Command cmd = parse_command(command);
-  switch (cmd.cmd) {
-  case CAP:
-    command_cap(fd, cmd.params); break;
-  case JOIN:
-    command_join(fd, cmd.params); break;
-  case NICK:
-    command_nick(fd, cmd.params); break;
-  case USER:
-    command_user(fd, cmd.params); break;
-  case PING:
-    command_ping(fd, cmd.params); break;
-  case MODE:
-    command_mode(fd, cmd.params); break;
-  case LIST:
-    command_list(fd, cmd.params); break;
-  case QUIT:
-    command_quit(fd, cmd.params); break;
-  case TOPIC:
-    command_topic(fd, cmd.params); break;
-  case PRIVMSG:
-    command_privmsg(fd, cmd.params); break;
-  default:
-    this->write_reply(fd, std::string("INVALID command"));
-  }
+
+  auto it = handlers.find(cmd.cmd);
+
+  it == handlers.end()
+      ? send_numeric(fd, ERR_UNKNOWNCOMMAND, "User", "Unknown command")
+      : (this->*(it->second))(fd, cmd.params);
+}
+
+void IrcServer::init_command_map() {
+  handlers[CAP] = &IrcServer::command_cap;
+  handlers[JOIN] = &IrcServer::command_join;
+  handlers[NICK] = &IrcServer::command_nick;
+  handlers[USER] = &IrcServer::command_user;
+  handlers[PING] = &IrcServer::command_ping;
+  handlers[MODE] = &IrcServer::command_mode;
+  handlers[LIST] = &IrcServer::command_list;
+  handlers[QUIT] = &IrcServer::command_quit;
+  handlers[TOPIC] = &IrcServer::command_topic;
+  handlers[PRIVMSG] = &IrcServer::command_privmsg;
 }
 
 /* --------------------------------*/
@@ -329,10 +330,8 @@ void IrcServer::command_cap(int fd, Params &params) {
   auto user = this->get_user(fd);
   auto nick = user->get_nick();
 
-  if (nick == "")
-    msg = std::string(":azade CAP * LS :");
-  else
-    msg = std::string(":azade CAP ") + nick + " LS :";
+  (nick == "") ? msg = std::string(":azade CAP * LS :")
+               : msg = std::string(":azade CAP ") + nick + " LS :";
 
   this->write_reply(fd, msg);
 }
@@ -437,7 +436,7 @@ void IrcServer::command_join(int fd, Params &params) {
 
   if (this->channels.empty() || !this->channel_exist(name))
     this->channels[name] = new Channel(name);
- 
+
   auto channel = this->channels[name];
   channel->add_user(user->get_id());
   user->add_channel(name);
@@ -447,7 +446,7 @@ void IrcServer::command_join(int fd, Params &params) {
   send_numeric(fd, RPL_TOPIC, nick, msg);
 
   /* Broadcast new join */
-  msg = "User " + nick + " Has join the channel!"; 
+  msg = "User " + nick + " Has join the channel!";
   broadcast(0, channel, msg);
 }
 
@@ -495,11 +494,11 @@ void IrcServer::command_list(int fd, Params &params) {
 
 UserMode char_to_flag(char flag) {
   switch (flag) {
-  case 'w': return MODE_WALLOPS;
-  case 'o': return MODE_OPERATOR;
-  case 'i': return MODE_INVISIBLE;
-  case 'r': return MODE_RESTRICTED;
-  default: return UNKNOWN;
+    case 'w': return MODE_WALLOPS;
+    case 'o': return MODE_OPERATOR;
+    case 'i': return MODE_INVISIBLE;
+    case 'r': return MODE_RESTRICTED;
+    default : return UNKNOWN;
   }
 }
 
@@ -521,16 +520,14 @@ void IrcServer::command_mode(int fd, Params &params) {
   bool enable;
 
   for (char c : modes) {
-    if (c == '+') {enable = true; continue;}
-    if (c == '-') {enable = false; continue;}
+    if (c == '+') { enable = true;  continue; }
+    if (c == '-') { enable = false; continue; }
 
     auto mode = char_to_flag(c);
-    if (mode == UNKNOWN) {
-      send_numeric(fd, ERR_UNKNOWNMODEFLAG, nick, "Not a valid mode");
-      return;
-    }
 
-    user->change_mode(mode, enable);
+    (mode == UNKNOWN)
+        ? send_numeric(fd, ERR_UNKNOWNMODEFLAG, nick, "Not a valid mode")
+        : user->change_mode(mode, enable);
   }
 }
 
@@ -551,18 +548,13 @@ void IrcServer::command_quit(int fd, Params &params) {
   }
 
   /* Broadcast Quit message */
-  for (auto ch_name: channels){
+  for (auto ch_name : channels) {
     auto channel = this->channels[ch_name];
     broadcast(fd, channel, msg);
     channel->remove_user(user->get_id());
-  
-}
+  }
 
-  close(fd);
-  epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
-  this->users.erase(fd);
-  this->cmdBuffers.erase(fd);
-  delete user;
+  this->close_user(fd);
 }
 
 /* --------------------------------*/
@@ -638,7 +630,7 @@ void IrcServer::command_privmsg(int fd, Params &params) {
 
   for (int i = 1; i < params.size(); i++)
     msg = msg + " " + params[i];
-  
+
   auto channel = this->channels[ch_name];
   auto irc_msg = build_msg(user->get_nick(), channel, msg);
 
@@ -649,14 +641,15 @@ void IrcServer::command_privmsg(int fd, Params &params) {
 /*          Broadcast              */
 /* --------------------------------*/
 
-void IrcServer::broadcast(int from_fd, Channel *channel, const std::string &msg) {
+void IrcServer::broadcast(int from_fd, Channel *channel,
+                          const std::string &msg) {
   for (auto user_id : channel->get_users()) {
     auto user = this->get_user_by_id(user_id);
     auto fd = user->get_fd();
 
     if (from_fd == fd)
       continue;
-    
+
     write_reply(fd, msg);
   }
 }
