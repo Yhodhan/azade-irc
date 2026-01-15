@@ -91,12 +91,15 @@ ssize_t IrcServer::read_msg(int fd, char *buffer, size_t size) {
 /*            Getters              */
 /* --------------------------------*/
 
+UserMap IrcServer::get_users() { return this->users; } 
 User *IrcServer::get_user(int fd) { return this->users[fd]; }
 User *IrcServer::get_user_by_id(uint32_t id) { return this->users_id[id]; }
-
 Channel *IrcServer::get_channel(const std::string &ch_name) {
   auto name = this->channel_name(ch_name);
   return this->channels[ch_name];
+}
+std::map<std::string, Channel *> IrcServer::get_channels() {
+  return this->channels;
 }
 
 /* --------------------------------*/
@@ -282,10 +285,12 @@ void IrcServer::accept_client(int sock, bool use_tls) {
 /* --------------------------------*/
 
 void IrcServer::close_user(int fd) {
+  auto user = this->get_user(fd);
   close(fd);
   epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
   this->users.erase(fd);
   this->cmdBuffers.erase(fd);
+  delete user;
 }
 
 /* --------------------------------*/
@@ -296,353 +301,28 @@ void IrcServer::handle_command(int fd, std::string command) {
   Command cmd = parse_command(command);
   switch (cmd.cmd) {
   case CAP:
-    command_cap(fd, cmd.params); break;
+    command_cap(fd, cmd.params, this); break;
   case JOIN:
-    command_join(fd, cmd.params); break;
+    command_join(fd, cmd.params, this); break;
   case NICK:
-    command_nick(fd, cmd.params); break;
+    command_nick(fd, cmd.params, this); break;
   case USER:
-    command_user(fd, cmd.params); break;
+    command_user(fd, cmd.params, this); break;
   case PING:
-    command_ping(fd, cmd.params); break;
+    command_ping(fd, cmd.params, this); break;
   case MODE:
-    command_mode(fd, cmd.params); break;
+    command_mode(fd, cmd.params, this); break;
   case LIST:
-    command_list(fd, cmd.params); break;
+    command_list(fd, cmd.params, this); break;
   case QUIT:
-    command_quit(fd, cmd.params); break;
+    command_quit(fd, cmd.params, this); break;
   case TOPIC:
-    command_topic(fd, cmd.params); break;
+    command_topic(fd, cmd.params, this); break;
   case PRIVMSG:
-    command_privmsg(fd, cmd.params); break;
+    command_privmsg(fd, cmd.params, this); break;
   default:
     this->write_reply(fd, std::string("INVALID command"));
   }
-}
-
-/* --------------------------------*/
-/*          Cap Command            */
-/* --------------------------------*/
-
-void IrcServer::command_cap(int fd, Params &params) {
-  std::string msg;
-  auto user = this->get_user(fd);
-  auto nick = user->get_nick();
-
-  if (nick == "")
-    msg = std::string(":azade CAP * LS :");
-  else
-    msg = std::string(":azade CAP ") + nick + " LS :";
-
-  this->write_reply(fd, msg);
-}
-
-/* --------------------------------*/
-/*          Nick Command           */
-/* --------------------------------*/
-
-void IrcServer::command_nick(int fd, Params &params) {
-  auto user = this->users[fd];
-
-  for (auto const &[key, val] : this->users) {
-    if (val->get_nick() == params[0]) {
-      send_numeric(fd, ERR_NICKCOLLISION, "NICK", "ERROR NICK ALREADY IN USE");
-      return;
-    }
-  }
-
-  user->set_nick(params[0]);
-}
-
-/* --------------------------------*/
-/*          User Command           */
-/* --------------------------------*/
-
-bool IrcServer::user_exists(int fd, Params &params) {
-  // if (this->users[fd]->get_fd() == fd) {
-  //   write_reply(fd, "461 USER :User already registered");
-  //   return true;
-  // }
-  // else if (this->users[fd]->get_nick() == params[1]) {
-  //   write_reply(fd, "461 USER :Nick already registered");
-  // }
-
-  return false;
-}
-
-void IrcServer::command_user(int fd, Params &params) {
-  auto user = this->get_user(fd);
-  auto nick = user->get_nick();
-
-  if (params.size() < 4) {
-    send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "Not enough parameters");
-    return;
-  }
-
-  if (this->user_exists(fd, params))
-    return;
-
-  send_numeric(fd, RPL_WELCOME, nick, "Welcome to the Azade IRC Server");
-  send_numeric(fd, RPL_YOURHOST, nick,
-               "Your host is azade, running version 0.1");
-  send_numeric(fd, RPL_CREATED, nick, "This server was created today");
-  send_numeric(fd, RPL_MYINFO, nick, "azade 0.1 o o");
-}
-
-/* --------------------------------*/
-/*          Ping Command           */
-/* --------------------------------*/
-
-void IrcServer::command_ping(int fd, Params &params) {
-  if (params.empty()) {
-    auto nick = this->get_user(fd)->get_nick();
-    send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "No origin specified");
-    return;
-  }
-
-  write_reply(fd, "PONG " + params[0]);
-}
-
-/* --------------------------------*/
-/*          Join Command           */
-/* --------------------------------*/
-
-std::string IrcServer::channel_name(std::string chl) {
-  auto c = chl[0];
-  std::string channel;
-
-  if (c == '#' || c == '&')
-    channel = chl.substr(1, chl.size());
-  else
-    channel = chl;
-
-  return channel;
-}
-
-bool IrcServer::channel_exist(const std::string &name) {
-  auto it = this->channels.find(name);
-  return it == this->channels.end() ? false : true;
-}
-
-void IrcServer::command_join(int fd, Params &params) {
-  auto user = this->get_user(fd);
-  auto nick = user->get_nick();
-
-  if (params.empty()) {
-    send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "Not enough parameters");
-    return;
-  }
-
-  auto name = channel_name(params[0]);
-
-  if (this->channels.empty() || !this->channel_exist(name))
-    this->channels[name] = new Channel(name);
- 
-  auto channel = this->channels[name];
-  channel->add_user(user->get_id());
-  user->add_channel(name);
-
-  /* Send the topic */
-  auto msg = "Topic: " + channel->get_topic();
-  send_numeric(fd, RPL_TOPIC, nick, msg);
-
-  /* Broadcast new join */
-  msg = "User " + nick + " Has join the channel!"; 
-  broadcast(0, channel, msg);
-}
-
-/* --------------------------------*/
-/*          List Command           */
-/* --------------------------------*/
-
-void IrcServer::command_list(int fd, Params &params) {
-  auto user = this->get_user(fd);
-  auto nick = user->get_nick();
-
-  send_numeric(fd, RPL_LISTSTART, nick, "Channel :Users Name");
-
-  if (params.empty()) {
-    for (auto const &[name, channel] : this->channels) {
-      if (channel->is_private())
-        continue;
-
-      std::string msg = name + " " + std::to_string(channel->user_count()) +
-                        " " + channel->get_topic();
-      send_numeric(fd, RPL_LIST, nick, msg);
-    }
-  }
-
-  else {
-    for (auto ch_name : params) {
-      auto name = channel_name(ch_name);
-
-      if (!channel_exist(name))
-        continue;
-
-      auto channel = this->channels[name];
-      std::string msg = name + " " + std::to_string(channel->user_count()) +
-                        " " + channel->get_topic();
-      send_numeric(fd, RPL_LIST, nick, msg);
-    }
-  }
-
-  send_numeric(fd, RPL_LISTEND, nick, "End of /LIST");
-}
-
-/* --------------------------------*/
-/*          Mode Command           */
-/* --------------------------------*/
-
-UserMode char_to_flag(char flag) {
-  switch (flag) {
-  case 'w': return MODE_WALLOPS;
-  case 'o': return MODE_OPERATOR;
-  case 'i': return MODE_INVISIBLE;
-  case 'r': return MODE_RESTRICTED;
-  default: return UNKNOWN;
-  }
-}
-
-void IrcServer::command_mode(int fd, Params &params) {
-  auto user = this->get_user(fd);
-  auto nick = user->get_nick();
-
-  if (params.size() < 2) {
-    send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "Not enough parameters");
-    return;
-  }
-
-  if (params[0] != nick) {
-    send_numeric(fd, ERR_USERSDONTMATCH, nick, "User do not match");
-    return;
-  }
-
-  auto modes = params[1];
-  bool enable;
-
-  for (char c : modes) {
-    if (c == '+') {enable = true; continue;}
-    if (c == '-') {enable = false; continue;}
-
-    auto mode = char_to_flag(c);
-    if (mode == UNKNOWN) {
-      send_numeric(fd, ERR_UNKNOWNMODEFLAG, nick, "Not a valid mode");
-      return;
-    }
-
-    user->change_mode(mode, enable);
-  }
-}
-
-/* --------------------------------*/
-/*          Quit Command           */
-/* --------------------------------*/
-
-void IrcServer::command_quit(int fd, Params &params) {
-  auto user = this->get_user(fd);
-  auto channels = user->get_channels();
-
-  std::string msg;
-  if (params.empty())
-    msg = "";
-  else {
-    for (int i = 1; i < params.size(); i++)
-      msg = msg + " " + params[i];
-  }
-
-  /* Broadcast Quit message */
-  for (auto ch_name: channels){
-    auto channel = this->channels[ch_name];
-    broadcast(fd, channel, msg);
-    channel->remove_user(user->get_id());
-  
-}
-
-  close(fd);
-  epoll_ctl(this->epollfd, EPOLL_CTL_DEL, fd, nullptr);
-  this->users.erase(fd);
-  this->cmdBuffers.erase(fd);
-  delete user;
-}
-
-/* --------------------------------*/
-/*          Topic Command          */
-/* --------------------------------*/
-
-void IrcServer::command_topic(int fd, Params &params) {
-  auto user = this->get_user(fd);
-  auto nick = user->get_nick();
-
-  if (params.empty())
-    send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "Not enough parameters");
-
-  else if (params.size() == 1) {
-    auto ch_name = channel_name(params[0]);
-
-    if (!channel_exist(ch_name)) {
-      send_numeric(fd, ERR_NOSUCHCHANNEL, nick, ch_name + " No such channel");
-      return;
-    }
-
-    auto channel = this->channels[ch_name];
-
-    if (!channel->has_user(user->get_id())) {
-      send_numeric(fd, ERR_NOTONCHANNEL, nick, ch_name + "");
-      return;
-    }
-
-    auto topic = this->channels[ch_name]->get_topic();
-
-    if (topic.empty())
-      send_numeric(fd, RPL_NOTOPIC, nick, ch_name + " " + topic);
-    else
-      send_numeric(fd, RPL_TOPIC, nick, ch_name + " " + topic);
-  }
-
-  else {
-    auto ch_name = channel_name(params[0]);
-    auto channel = this->channels[ch_name];
-    auto new_topic = params[1];
-    channel->set_topic(new_topic);
-  }
-}
-
-/* --------------------------------*/
-/*          PRIVMSG Command        */
-/* --------------------------------*/
-
-std::string build_msg(std::string nick, Channel *channel,
-                      const std::string &msg) {
-  auto irc_msg = ":" + nick + " PRIVMSG " + channel->get_name() + msg;
-
-  return irc_msg;
-}
-
-void IrcServer::command_privmsg(int fd, Params &params) {
-  auto user = this->get_user(fd);
-  auto nick = user->get_nick();
-
-  if (params.size() < 2) {
-    send_numeric(fd, ERR_NOTEXTTOSEND, nick, "No message to send");
-    return;
-  }
-
-  auto ch_name = channel_name(params[0]);
-  if (!this->channel_exist(ch_name)) {
-    send_numeric(fd, ERR_NOSUCHCHANNEL, nick, ch_name + " No such channel");
-    return;
-  }
-
-  /* unified split messages */
-  std::string msg = "";
-
-  for (int i = 1; i < params.size(); i++)
-    msg = msg + " " + params[i];
-  
-  auto channel = this->channels[ch_name];
-  auto irc_msg = build_msg(user->get_nick(), channel, msg);
-
-  broadcast(fd, channel, irc_msg);
 }
 
 /* --------------------------------*/

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../channels/channel.h"
-#include "../commands/commands.h"
 #include "../numerics.h"
 #include "../users/user.h"
 #include <arpa/inet.h>
@@ -20,6 +19,7 @@
 #include <thread>
 #include <unistd.h>
 #include <vector>
+#include "../commands/commands.h"
 
 // #define TLS_PORT 6697
 #define PORT 6667
@@ -40,6 +40,27 @@ public:
   void install_signal_handler(IrcServer *server);
 
   /* --------------------------------*/
+  /*            Getters              */
+  /* --------------------------------*/
+  UserMap get_users();
+  User *get_user(int fd);
+  void close_user(int fd);
+  User *get_user_by_id(uint32_t fd);
+  bool user_exists(int fd, Params &params);
+  std::string channel_name(std::string chl);
+  bool channel_exist(const std::string &name);
+  Channel *get_channel(const std::string &ch_name);
+  std::map<std::string, Channel *> get_channels();
+
+  /* --------------------------------*/
+  /*            Responses            */
+  /* --------------------------------*/
+  void write_reply(int fd, std::string reply);
+  void broadcast(int from_fd, Channel *channel, const std::string &msg);
+  void send_numeric(int fd, IrcNumeric code, const std::string &target,
+                    const std::string &msg);
+
+  /* --------------------------------*/
   /*         Signal Variables        */
   /* --------------------------------*/
   static IrcServer *instance;
@@ -50,37 +71,10 @@ private:
   int setup_socket(int port);
   void handle_msg(struct epoll_event *event);
   int poll_wait(struct epoll_event **events);
-  void write_reply(int fd, std::string reply);
   void handle_command(int fd, std::string command);
   ssize_t read_msg(int fd, char *buffer, size_t size);
   void print_error(const std::string &msg, bool with_errno = false);
-  void send_numeric(int fd, IrcNumeric code, const std::string &target,
-                    const std::string &msg);
-
-  User *get_user(int fd);
-  void close_user(int fd);
-  User *get_user_by_id(uint32_t fd);
-  bool user_exists(int fd, Params &params);
-  std::string channel_name(std::string chl);
   void accept_client(int sock, bool use_tls);
-  bool channel_exist(const std::string &name);
-  Channel *get_channel(const std::string &ch_name);
-  void broadcast(int from_fd, Channel *channel, const std::string &msg);
-
-  /* --------------------------------*/
-  /*           Commands              */
-  /* --------------------------------*/
-
-  void command_cap(int fd, Params &params);
-  void command_join(int fd, Params &params);
-  void command_nick(int fd, Params &params);
-  void command_user(int fd, Params &params);
-  void command_ping(int fd, Params &params);
-  void command_mode(int fd, Params &params);
-  void command_list(int fd, Params &params);
-  void command_quit(int fd, Params &params);
-  void command_topic(int fd, Params &params);
-  void command_privmsg(int fd, Params &params);
 
   /* --------------------------------*/
   /*           Variables             */
