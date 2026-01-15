@@ -55,7 +55,6 @@ private:
   int poll_wait(struct epoll_event **events);
   void write_reply(int fd, std::string reply);
   void handle_command(int fd, std::string command);
-  ssize_t read_msg(int fd, char *buffer, size_t size);
   void print_error(const std::string &msg, bool with_errno = false);
   void send_numeric(int fd, IrcNumeric code, const std::string &target,
                     const std::string &msg);

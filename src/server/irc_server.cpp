@@ -83,10 +83,6 @@ void IrcServer::write_reply(int fd, std::string reply) {
   write(fd, reply.c_str(), reply.size());
 }
 
-ssize_t IrcServer::read_msg(int fd, char *buffer, size_t size) {
-  return recv(fd, buffer, size, 0);
-}
-
 /* --------------------------------*/
 /*            Getters              */
 /* --------------------------------*/
@@ -166,7 +162,7 @@ void IrcServer::handle_msg(struct epoll_event *event) {
   char buffer[BUF_SIZE] = {0};
   std::string &cmd = this->cmdBuffers[fd];
 
-  ssize_t bytes = this->read_msg(fd, buffer, sizeof(buffer));
+  ssize_t bytes = recv(fd, buffer, sizeof(buffer), 0);
 
   if (bytes < 0) {
     if (errno == EAGAIN || errno == EWOULDBLOCK)
