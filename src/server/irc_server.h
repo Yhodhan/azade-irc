@@ -22,7 +22,7 @@
 #include <unordered_map>
 #include <vector>
 
-// #define TLS_PORT 6697
+#define TLS_PORT 6697
 #define PORT 6667
 #define BUF_SIZE 4096
 
@@ -51,16 +51,19 @@ private:
   void setup_poll(void);
   void init_command_map();
   int setup_socket(int port);
+  void set_user_tls(User *user);
   void handle_msg(struct epoll_event *event);
   int poll_wait(struct epoll_event **events);
   void write_reply(int fd, std::string reply);
   void handle_command(int fd, std::string command);
+  ssize_t read_msg(int fd, char *buffer, size_t size);
   void print_error(const std::string &msg, bool with_errno = false);
   void send_numeric(int fd, IrcNumeric code, const std::string &target,
                     const std::string &msg);
 
   User *get_user(int fd);
   void close_user(int fd);
+  bool is_tls_connection(int fd);
   User *get_user_by_id(uint32_t fd);
   bool user_exists(int fd, Params &params);
   std::string channel_name(std::string chl);
@@ -69,7 +72,6 @@ private:
   Channel *get_channel(const std::string &ch_name);
   void dispatch_command(int fd, std::string &command);
   void broadcast(int from_fd, Channel *channel, const std::string &msg);
-
   /* --------------------------------*/
   /*           Commands              */
   /* --------------------------------*/
@@ -89,20 +91,22 @@ private:
   /*           Variables             */
   /* --------------------------------*/
 
-  int epollfd;
-  SSL *ssl = NULL;
+  int tlsfd;
   int sockfd;
-  sockaddr_in srv_address;
+  int epollfd;
   int port = PORT;
+  int tls_port = TLS_PORT;
+  sockaddr_in srv_address;
 
-  std::map<std::string, Channel *> channels;
   SSL_CTX *ssl_ctx = nullptr;
+  std::map<std::string, Channel *> channels;
 
   UserMap users;
   UserIdMap users_id;
   std::atomic<bool> running;
   std::map<int, std::string> cmdBuffers;
   std::unordered_map<CmdType, Handler> handlers;
+  std::unordered_map<int, SSL *> tls_connections;
 
   /* --------------------------------*/
   /*          Exceptions             */
@@ -139,6 +143,21 @@ private:
   };
 
   class readFdError : public std::exception {
+  public:
+    virtual const char *what() const throw();
+  };
+
+  class sslError : public std::exception {
+  public:
+    virtual const char *what() const throw();
+  };
+
+  class sslReadError : public std::exception {
+  public:
+    virtual const char *what() const throw();
+  };
+
+  class sslWriteError : public std::exception {
   public:
     virtual const char *what() const throw();
   };

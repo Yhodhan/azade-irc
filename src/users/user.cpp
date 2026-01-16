@@ -29,8 +29,8 @@ std::unordered_set<std::string> User::get_channels() { return this->channels; }
 /*                    Setters                         */
 /* -------------------------------------------------- */
 
-void User::add_channel(std::string channel) { this->channels.insert(channel); }
 void User::set_nick(const std::string nick) { this->nick = nick; }
+void User::add_channel(std::string channel) { this->channels.insert(channel); }
 
 /* -------------------------------------------------- */
 /*                    Change Mode                     */
