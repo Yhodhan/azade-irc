@@ -336,8 +336,10 @@ void IrcServer::handle_msg(struct epoll_event *event) {
   int fd = event->data.fd;
   auto user = this->get_user(fd);
 
-  if (this->is_tls_connection(fd) && !user->is_tls_ready())
+  if (this->is_tls_connection(fd) && !user->is_tls_ready()) {
     this->handle_tls_user(fd, user);
+    return; 
+  }
 
   char buffer[BUF_SIZE] = {0};
   std::string &cmd = this->cmdBuffers[fd];
@@ -369,26 +371,9 @@ void IrcServer::handle_msg(struct epoll_event *event) {
 /*           Command               */
 /* --------------------------------*/
 
-const char *cmd_type_to_string(CmdType t) {
-    switch (t) {
-        case CAP:     return "CAP";
-        case JOIN:    return "JOIN";
-        case NICK:    return "NICK";
-        case USER:    return "USER";
-        case PING:    return "PING";
-        case MODE:    return "MODE";
-        case LIST:    return "LIST";
-        case QUIT:    return "QUIT";
-        case TOPIC:   return "TOPIC";
-        case PRIVMSG: return "PRIVMSG";
-        default:      return "UNKNOWN";
-    }
-}
-
 void IrcServer::dispatch_command(int fd, std::string &command) {
   Command cmd = parse_command(command);
 
-  std::cout << "command to execute: " << cmd_type_to_string(cmd.cmd) << std::endl;
   auto it = handlers.find(cmd.cmd);
 
   it == handlers.end()
@@ -415,9 +400,10 @@ void IrcServer::init_command_map() {
 
 void IrcServer::command_cap(int fd, Params &params) {
   std::string msg;
-
-  msg = std::string(":azade CAP * LS :");
-  this->write_reply(fd, msg);
+  if (!params.empty() && params[0] == "LS") {
+    msg = std::string(":azade CAP * LS :");
+    this->write_reply(fd, msg);
+  }
 }
 
 /* --------------------------------*/
