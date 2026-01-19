@@ -1,9 +1,9 @@
 #include "irc_server.h"
-#include <openssl/ssl.h>
 
 /* --------------------------------*/
 /*          Constructor            */
 /* --------------------------------*/
+
 IrcServer *IrcServer::instance = nullptr;
 IrcServer::IrcServer() : running(true) {}
 
@@ -37,8 +37,18 @@ void IrcServer::init_ssl() {
   SSL_load_error_strings();
   OpenSSL_add_ssl_algorithms();
 
+  const SSL_METHOD* method = TLS_server_method(); 
+
+
+  this->ssl_ctx = SSL_CTX_new(method);
+
+  if (!this->ssl_ctx) {
+    ERR_print_errors_fp(stderr);
+    throw IrcServer::sslError();
+  }
+
   if (!SSL_CTX_use_certificate_file(ssl_ctx, "server.crt", SSL_FILETYPE_PEM) ||
-      !SSL_CTX_use_PrivateKey_file(ssl_ctx, "server.key", SSL_FILETYPE_PEM) ||
+      !SSL_CTX_use_PrivateKey_file(ssl_ctx, "server.key", SSL_FILETYPE_PEM)  ||
       !SSL_CTX_check_private_key(ssl_ctx)) {
     ERR_print_errors_fp(stderr);
     throw IrcServer::sslError();
@@ -71,50 +81,31 @@ void IrcServer::send_numeric(int fd, IrcNumeric code, const std::string &target,
 
   write_reply(fd, oss.str());
 }
+/* ---------------- */
+/*   Read messages  */
+/* ---------------- */
 
 ssize_t IrcServer::read_msg(int fd, char *buffer, size_t size) {
   if (!this->is_tls_connection(fd))
     return recv(fd, buffer, size, 0);
 
   auto ssl = this->tls_connections.find(fd)->second;
-
-  int bytes = SSL_read(ssl, buffer, size);
-  if (bytes <= 0) {
-    int err = SSL_get_error(ssl, bytes);
-
-    if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
-      errno = EAGAIN;
-      throw sslReadError();
-    }
-  }
-
-  return bytes;
+  return SSL_read(ssl, buffer, size);
 }
+
+/* ---------------- */
+/*  Write messages  */
+/* ---------------- */
 
 void IrcServer::write_reply(int fd, std::string reply) {
   reply += "\r\n";
 
-  auto ssl = this->tls_connections.find(fd)->second;
-
-  this->is_tls_connection(fd) ? SSL_write(ssl, reply.c_str(), reply.size())
-                              : write(fd, reply.c_str(), reply.size());
-}
-
-/* --------------------------------*/
-/*            Getters              */
-/* --------------------------------*/
-
-User *IrcServer::get_user(int fd) { return this->users[fd]; }
-User *IrcServer::get_user_by_id(uint32_t id) { return this->users_id[id]; }
-
-bool IrcServer::is_tls_connection(int fd) {
-  auto it = this->tls_connections.find(fd);
-  return it == this->tls_connections.end();
-}
-
-Channel *IrcServer::get_channel(const std::string &ch_name) {
-  auto name = this->channel_name(ch_name);
-  return this->channels[ch_name];
+  if (this->is_tls_connection(fd)) {
+    auto ssl = this->tls_connections.find(fd)->second;
+    SSL_write(ssl, reply.c_str(), reply.size());
+  } 
+  else
+    write(fd, reply.c_str(), reply.size());
 }
 
 /* --------------------------------*/
@@ -150,69 +141,6 @@ void IrcServer::shutdown(void) {
   // Broadcast termination signal
   for (auto &[fd, user] : this->users)
     write_reply(fd, "ERROR :Server shutting down");
-}
-
-/* --------------------------------*/
-/*           Work loop             */
-/* --------------------------------*/
-void IrcServer::event_loop(void) {
-  try {
-    struct epoll_event events[MAX_EVENTS];
-    struct epoll_event *events_ptr;
-
-    int num_events;
-
-    while (running) {
-      events_ptr = &(events[0]);
-      num_events = this->poll_wait(&events_ptr);
-      for (int i = 0; i < num_events; i++) {
-        /* normal connection */
-        if (events[i].data.fd == this->sockfd)
-          accept_client(this->sockfd, false);
-        /* tls connection */
-        else if (events[i].data.fd == this->tlsfd)
-          accept_client(this->tlsfd, true);
-        else
-          handle_msg(&events[i]);
-      }
-    }
-  }
-  /* Killer exceptions */
-  catch (const IrcServer::readFdError &e)       { print_error(e.what(), true); return; }
-  catch (const IrcServer::AcceptException &e)   { print_error(e.what(), true); return; }
-  catch (const IrcServer::pollWaitException &e) { print_error(e.what(), true); return; }
-}
-
-/* --------------------------------*/
-/*          Handle MSG             */
-/* --------------------------------*/
-
-void IrcServer::handle_msg(struct epoll_event *event) {
-  int fd = event->data.fd;
-  char buffer[BUF_SIZE] = {0};
-  std::string &cmd = this->cmdBuffers[fd];
-
-  ssize_t bytes = recv(fd, buffer, sizeof(buffer), 0);
-
-  if (bytes < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK)
-      return;
-    throw IrcServer::readFdError();
-  }
-
-  else if (bytes == 0) {
-    this->close_user(fd);
-    return;
-  }
-
-  cmd.append(buffer, bytes);
-  size_t pos;
-  while ((pos = cmd.find("\r\n")) != std::string::npos) {
-    std::string msg = cmd.substr(0, pos);
-    cmd.erase(0, pos + 2);
-
-    this->dispatch_command(fd, msg);
-  }
 }
 
 /* --------------------------------*/
@@ -258,7 +186,17 @@ void IrcServer::setup_poll(void) {
   int ectlfd;
   ev.events = EPOLLIN;
   ev.data.fd = this->sockfd;
+
   ectlfd = epoll_ctl(this->epollfd, EPOLL_CTL_ADD, this->sockfd, &ev);
+
+  if (ectlfd == -1)
+    throw IrcServer::pollAddException();
+
+  /* Same but for tls fd */
+  ev.events = EPOLLIN;
+  ev.data.fd = this->tlsfd;
+
+  ectlfd = epoll_ctl(this->epollfd, EPOLL_CTL_ADD, this->tlsfd, &ev);
 
   if (ectlfd == -1)
     throw IrcServer::pollAddException();
@@ -285,16 +223,7 @@ void IrcServer::set_user_tls(User *user) {
 
   SSL *ssl = SSL_new(this->ssl_ctx);
   SSL_set_fd(ssl, fd);
-  int r = SSL_accept(ssl);
-  if (r <= 0) {
-    int err = SSL_get_error(ssl, r);
-    if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE) {
-      SSL_free(ssl);
-      close(fd);
-      delete user;
-      return;
-    }
-  }
+  SSL_set_accept_state(ssl);
 
   this->tls_connections[fd] = ssl;
 }
@@ -305,7 +234,7 @@ void IrcServer::accept_client(int sock, bool use_tls) {
   int user_fd = accept(sock, nullptr, nullptr);
 
   if (user_fd < 0)
-    throw IrcServer::AcceptException();
+    throw IrcServer::acceptException();
 
   if (fcntl(user_fd, F_SETFL, O_NONBLOCK) == -1)
     throw IrcServer::socketException();
@@ -349,12 +278,117 @@ void IrcServer::close_user(int fd) {
 }
 
 /* --------------------------------*/
+/*           Work loop             */
+/* --------------------------------*/
+
+void IrcServer::event_loop(void) {
+  try {
+    struct epoll_event events[MAX_EVENTS];
+    struct epoll_event *events_ptr;
+
+    int num_events;
+
+    while (running) {
+      events_ptr = &(events[0]);
+      num_events = this->poll_wait(&events_ptr);
+      for (int i = 0; i < num_events; i++) {
+        /* normal connection */
+        if (events[i].data.fd == this->sockfd)
+          accept_client(this->sockfd, false);
+        /* tls connection */
+        else if (events[i].data.fd == this->tlsfd)
+          accept_client(this->tlsfd, true);
+        /* handle command */
+        else
+          handle_msg(&events[i]);
+      }
+    }
+  }
+  /* Killer exceptions */
+  catch (const IrcServer::readFdError &e)       { print_error(e.what(), true); return; }
+  catch (const IrcServer::acceptException &e)   { print_error(e.what(), true); return; }
+  catch (const IrcServer::pollWaitException &e) { print_error(e.what(), true); return; }
+}
+
+/* --------------------------------*/
+/*          Handle MSG             */
+/* --------------------------------*/
+
+void IrcServer::handle_tls_user(int fd, User *user) {
+  auto ssl = this->tls_connections[fd];
+  int r = SSL_accept(ssl);
+
+  if (r == 1) {
+    user->set_tls(true);
+    return;
+  }
+
+  int err = SSL_get_error(ssl, r);
+  if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
+    return;
+
+  ERR_print_errors_fp(stderr);
+  this->close_user(fd);
+  return;
+}
+
+void IrcServer::handle_msg(struct epoll_event *event) {
+  int fd = event->data.fd;
+  auto user = this->get_user(fd);
+
+  if (this->is_tls_connection(fd) && !user->is_tls_ready())
+    this->handle_tls_user(fd, user);
+
+  char buffer[BUF_SIZE] = {0};
+  std::string &cmd = this->cmdBuffers[fd];
+
+  ssize_t bytes = read_msg(fd, buffer, sizeof(buffer));
+
+  if (bytes < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK)
+      return;
+    throw IrcServer::readFdError();
+  }
+
+  else if (bytes == 0) {
+    this->close_user(fd);
+    return;
+  }
+
+  cmd.append(buffer, bytes);
+  size_t pos;
+  while ((pos = cmd.find("\r\n")) != std::string::npos) {
+    std::string msg = cmd.substr(0, pos);
+    cmd.erase(0, pos + 2);
+
+    this->dispatch_command(fd, msg);
+  }
+}
+
+/* --------------------------------*/
 /*           Command               */
 /* --------------------------------*/
+
+const char *cmd_type_to_string(CmdType t) {
+    switch (t) {
+        case CAP:     return "CAP";
+        case JOIN:    return "JOIN";
+        case NICK:    return "NICK";
+        case USER:    return "USER";
+        case PING:    return "PING";
+        case MODE:    return "MODE";
+        case LIST:    return "LIST";
+        case QUIT:    return "QUIT";
+        case TOPIC:   return "TOPIC";
+        case PRIVMSG: return "PRIVMSG";
+        default:      return "UNKNOWN";
+    }
+}
 
 void IrcServer::dispatch_command(int fd, std::string &command) {
   Command cmd = parse_command(command);
 
+  std::cout << "command to execute: " << cmd_type_to_string(cmd.cmd) << std::endl;
   auto it = handlers.find(cmd.cmd);
 
   it == handlers.end()
@@ -381,12 +415,8 @@ void IrcServer::init_command_map() {
 
 void IrcServer::command_cap(int fd, Params &params) {
   std::string msg;
-  auto user = this->get_user(fd);
-  auto nick = user->get_nick();
 
-  (nick == "") ? msg = std::string(":azade CAP * LS :")
-               : msg = std::string(":azade CAP ") + nick + " LS :";
-
+  msg = std::string(":azade CAP * LS :");
   this->write_reply(fd, msg);
 }
 
@@ -432,8 +462,18 @@ void IrcServer::command_user(int fd, Params &params) {
     return;
   }
 
-  if (this->user_exists(fd, params))
+  if (nick == "") {
+    send_numeric(fd, ERR_NONICKNAMEGIVEN, nick, "No nick name provided");
     return;
+  }
+
+  if (this->user_exists(fd, params)) {
+    send_numeric(fd, ERR_ALREADYREGISTERED, nick, "User already registered");
+    return;
+  }
+
+  /* complete registration */
+  user->registry();
 
   send_numeric(fd, RPL_WELCOME, nick, "Welcome to the Azade IRC Server");
   send_numeric(fd, RPL_YOURHOST, nick,
@@ -480,6 +520,11 @@ bool IrcServer::channel_exist(const std::string &name) {
 void IrcServer::command_join(int fd, Params &params) {
   auto user = this->get_user(fd);
   auto nick = user->get_nick();
+
+  if (!user->is_registered()) {
+    send_numeric(fd, ERR_NOTREGISTERED, nick, "Not enough parameters");
+    return;
+  }
 
   if (params.empty()) {
     send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "Not enough parameters");
@@ -709,6 +754,23 @@ void IrcServer::broadcast(int from_fd, Channel *channel,
 }
 
 /* --------------------------------*/
+/*            Getters              */
+/* --------------------------------*/
+
+User *IrcServer::get_user(int fd) { return this->users[fd]; }
+User *IrcServer::get_user_by_id(uint32_t id) { return this->users_id[id]; }
+
+bool IrcServer::is_tls_connection(int fd) {
+  auto it = this->tls_connections.find(fd);
+  return it != this->tls_connections.end();
+}
+
+Channel *IrcServer::get_channel(const std::string &ch_name) {
+  auto name = this->channel_name(ch_name);
+  return this->channels[ch_name];
+}
+
+/* --------------------------------*/
 /*          Exceptions             */
 /* --------------------------------*/
 
@@ -720,7 +782,7 @@ const char *IrcServer::bindException::what() const throw() {
   return ("Bind error: ");
 }
 
-const char *IrcServer::AcceptException::what() const throw() {
+const char *IrcServer::acceptException::what() const throw() {
   return ("Accept error: ");
 }
 
@@ -751,6 +813,7 @@ const char *IrcServer::sslReadError::what() const throw() {
 const char *IrcServer::sslWriteError::what() const throw() {
   return ("SSl write error: ");
 }
+
 /* --------------------------------*/
 /*          Error Printer          */
 /* --------------------------------*/

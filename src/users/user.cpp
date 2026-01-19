@@ -19,6 +19,10 @@ User::~User() {}
 int User::get_fd() { return this->fd; }
 uint32_t User::get_id() { return this->id; }
 std::string User::get_nick() { return this->nick; }
+void User::registry() { this->registered = true; }
+bool User::is_registered() { return this->registered;}
+bool User::is_tls_ready() { return this->tls_ready; }
+void User::set_tls(bool ready) { this->tls_ready = ready; }
 std::string User::get_username() { return this->username; }
 std::string User::get_hostname() { return this->hostname; }
 std::string User::get_servername() { return this->servername; }

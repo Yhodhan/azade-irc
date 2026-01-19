@@ -65,6 +65,7 @@ private:
   void close_user(int fd);
   bool is_tls_connection(int fd);
   User *get_user_by_id(uint32_t fd);
+  void handle_tls_user(int fd, User *user);
   bool user_exists(int fd, Params &params);
   std::string channel_name(std::string chl);
   void accept_client(int sock, bool use_tls);
@@ -122,7 +123,7 @@ private:
     virtual const char *what() const throw();
   };
 
-  class AcceptException : public std::exception {
+  class acceptException : public std::exception {
   public:
     virtual const char *what() const throw();
   };

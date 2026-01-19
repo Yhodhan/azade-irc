@@ -28,8 +28,12 @@ public:
   ~User();
 
   int get_fd();
+  void registry();
   uint32_t get_id();
+  bool is_tls_ready();
+  bool is_registered();
   std::string get_nick();
+  void set_tls(bool ready);
   std::string get_username();
   std::string get_hostname();
   std::string get_realname();
@@ -48,6 +52,8 @@ private:
   std::string hostname;
   std::string servername;
   std::string realname;
+  bool tls_ready = false;
+  bool registered = false;
 
   std::unordered_set<std::string> channels;
 };
