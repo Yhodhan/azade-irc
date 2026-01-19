@@ -382,7 +382,7 @@ void IrcServer::dispatch_command(int fd, std::string &command) {
 }
 
 void IrcServer::init_command_map() {
-  handlers[CAP] = &IrcServer::command_cap;
+  handlers[CAP]  = &IrcServer::command_cap;
   handlers[JOIN] = &IrcServer::command_join;
   handlers[NICK] = &IrcServer::command_nick;
   handlers[USER] = &IrcServer::command_user;
@@ -407,11 +407,33 @@ void IrcServer::command_cap(int fd, Params &params) {
 }
 
 /* --------------------------------*/
+/*        Complete registry        */
+/* --------------------------------*/
+
+void IrcServer::complete_registry(int fd, User *user) {
+  user->registry();
+
+  auto nick = user->get_nick();
+
+  send_numeric(fd, RPL_WELCOME, nick, "Welcome to the Azade IRC Server");
+  send_numeric(fd, RPL_YOURHOST, nick,
+               "Your host is azade, running version 0.1");
+  send_numeric(fd, RPL_CREATED, nick, "This server was created today");
+  send_numeric(fd, RPL_MYINFO, nick, "azade 0.1 o o");
+}
+
+/* --------------------------------*/
 /*          Nick Command           */
 /* --------------------------------*/
 
 void IrcServer::command_nick(int fd, Params &params) {
   auto user = this->users[fd];
+  auto nick = params[0];
+
+  if (user->is_registered()) {
+    send_numeric(fd, ERR_ALREADYREGISTERED, nick, "User already registered");
+    return;
+  }
 
   for (auto const &[key, val] : this->users) {
     if (val->get_nick() == params[0]) {
@@ -421,23 +443,14 @@ void IrcServer::command_nick(int fd, Params &params) {
   }
 
   user->set_nick(params[0]);
+
+  if (!user->is_registered() && user->has_user_fields())
+    this->complete_registry(fd, user);
 }
 
 /* --------------------------------*/
 /*          User Command           */
 /* --------------------------------*/
-
-bool IrcServer::user_exists(int fd, Params &params) {
-  // if (this->users[fd]->get_fd() == fd) {
-  //   write_reply(fd, "461 USER :User already registered");
-  //   return true;
-  // }
-  // else if (this->users[fd]->get_nick() == params[1]) {
-  //   write_reply(fd, "461 USER :Nick already registered");
-  // }
-
-  return false;
-}
 
 void IrcServer::command_user(int fd, Params &params) {
   auto user = this->get_user(fd);
@@ -448,24 +461,19 @@ void IrcServer::command_user(int fd, Params &params) {
     return;
   }
 
-  if (nick == "") {
-    send_numeric(fd, ERR_NONICKNAMEGIVEN, nick, "No nick name provided");
-    return;
-  }
-
-  if (this->user_exists(fd, params)) {
+  if (user->is_registered()) {
     send_numeric(fd, ERR_ALREADYREGISTERED, nick, "User already registered");
     return;
   }
 
-  /* complete registration */
-  user->registry();
+  user->set_username(params[0]); 
+  user->set_hostname(params[1]); 
+  user->set_realname(params[3]); 
+  user->set_servername(params[2]); 
 
-  send_numeric(fd, RPL_WELCOME, nick, "Welcome to the Azade IRC Server");
-  send_numeric(fd, RPL_YOURHOST, nick,
-               "Your host is azade, running version 0.1");
-  send_numeric(fd, RPL_CREATED, nick, "This server was created today");
-  send_numeric(fd, RPL_MYINFO, nick, "azade 0.1 o o");
+  /* complete registration */
+  if (!user->is_registered() && user->has_nick()) 
+    this->complete_registry(fd, user);
 }
 
 /* --------------------------------*/
@@ -508,7 +516,7 @@ void IrcServer::command_join(int fd, Params &params) {
   auto nick = user->get_nick();
 
   if (!user->is_registered()) {
-    send_numeric(fd, ERR_NOTREGISTERED, nick, "Not enough parameters");
+    send_numeric(fd, ERR_NOTREGISTERED, nick, "User not registered");
     return;
   }
 

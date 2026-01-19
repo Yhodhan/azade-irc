@@ -29,10 +29,12 @@ public:
 
   int get_fd();
   void registry();
+  bool has_nick();
   uint32_t get_id();
   bool is_tls_ready();
   bool is_registered();
   std::string get_nick();
+  bool has_user_fields();
   void set_tls(bool ready);
   std::string get_username();
   std::string get_hostname();
@@ -42,6 +44,10 @@ public:
   void set_nick(const std::string nick);
   void change_mode(UserMode mode, bool enable);
   std::unordered_set<std::string> get_channels();
+  void set_username(const std::string &username);
+  void set_hostname(const std::string &hostname);
+  void set_realname(const std::string &realname);
+  void set_servername(const std::string &servername);
 
 private:
   int fd;

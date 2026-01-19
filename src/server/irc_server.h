@@ -43,6 +43,7 @@ public:
   /* --------------------------------*/
   /*         Signal Variables        */
   /* --------------------------------*/
+
   static IrcServer *instance;
   using Handler = void (IrcServer::*)(int, Params &);
 
@@ -66,13 +67,14 @@ private:
   bool is_tls_connection(int fd);
   User *get_user_by_id(uint32_t fd);
   void handle_tls_user(int fd, User *user);
-  bool user_exists(int fd, Params &params);
   std::string channel_name(std::string chl);
+  void complete_registry(int fd, User *user);
   void accept_client(int sock, bool use_tls);
   bool channel_exist(const std::string &name);
   Channel *get_channel(const std::string &ch_name);
   void dispatch_command(int fd, std::string &command);
   void broadcast(int from_fd, Channel *channel, const std::string &msg);
+
   /* --------------------------------*/
   /*           Commands              */
   /* --------------------------------*/
