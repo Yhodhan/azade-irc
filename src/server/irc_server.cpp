@@ -39,7 +39,6 @@ void IrcServer::init_ssl() {
 
   const SSL_METHOD* method = TLS_server_method(); 
 
-
   this->ssl_ctx = SSL_CTX_new(method);
 
   if (!this->ssl_ctx) {
@@ -114,15 +113,15 @@ void IrcServer::write_reply(int fd, std::string reply) {
 
 void IrcServer::start(void) {
   try {
-    /* init the callbacks map */
+    /* Init the callbacks map */
     this->init_command_map();
-    /* init SSL encryptation */
+    /* Init SSL encryptation */
     this->init_ssl();
-    /* create the plain socket */
+    /* Create the plain socket */
     this->sockfd = setup_socket(this->port);
-    /* create the tls socket */
+    /* Create the tls socket */
     this->tlsfd = setup_socket(this->tls_port);
-    /* create event poll */
+    /* Create event poll */
     this->setup_poll();
   }
   /* Killer exceptions */
@@ -172,7 +171,7 @@ int IrcServer::setup_socket(int port) {
 }
 
 /* --------------------------------*/
-/*     Create event poll event     */
+/*       Create event poll         */
 /* --------------------------------*/
 
 void IrcServer::setup_poll(void) {
@@ -471,7 +470,7 @@ void IrcServer::command_user(int fd, Params &params) {
   user->set_realname(params[3]); 
   user->set_servername(params[2]); 
 
-  /* complete registration */
+  /* Complete registration */
   if (!user->is_registered() && user->has_nick()) 
     this->complete_registry(fd, user);
 }
@@ -527,7 +526,8 @@ void IrcServer::command_join(int fd, Params &params) {
 
   auto name = channel_name(params[0]);
 
-  if (this->channels.empty() || !this->channel_exist(name))
+  if (
+this->channels.empty() || !this->channel_exist(name))
     this->channels[name] = new Channel(name);
 
   auto channel = this->channels[name];
@@ -658,8 +658,10 @@ void IrcServer::command_topic(int fd, Params &params) {
   auto user = this->get_user(fd);
   auto nick = user->get_nick();
 
-  if (params.empty())
+  if (params.empty()){
     send_numeric(fd, ERR_NEEDMOREPARAMS, nick, "Not enough parameters");
+    return;
+  }
 
   else if (params.size() == 1) {
     auto ch_name = channel_name(params[0]);
@@ -718,7 +720,7 @@ void IrcServer::command_privmsg(int fd, Params &params) {
     return;
   }
 
-  /* unified split messages */
+  /* Unified split messages */
   std::string msg = "";
 
   for (int i = 1; i < params.size(); i++)

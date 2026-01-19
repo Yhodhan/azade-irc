@@ -22,8 +22,8 @@
 #include <unordered_map>
 #include <vector>
 
-#define TLS_PORT 6697
 #define PORT 6667
+#define TLS_PORT 6697
 #define BUF_SIZE 4096
 
 constexpr int MAX_EVENTS = 100;

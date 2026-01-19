@@ -5,16 +5,12 @@
 /* -------------------------------------------------- */
 
 Params split_command(const std::string cmd) {
-
   std::string s;
-
   std::stringstream ss(cmd);
-
   Params tokens;
 
-  while (getline(ss, s, ' ')) {
+  while (getline(ss, s, ' '))
     tokens.push_back(s);
-  }
 
   return tokens;
 }
@@ -45,7 +41,7 @@ Command get_command(Params command) {
     return Command(TOPIC, command);
   else if (cmd == "PRIVMSG")
     return Command(PRIVMSG, command);
-  else 
+  else
     return Command(PING, command);
 }
 
